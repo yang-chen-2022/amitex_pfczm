@@ -1,0 +1,17 @@
+RUN TESTS
+=========
+
+	python3 run_tests.py
+
+
+PROCEDURE TO ADD A NEW TEST 
+===========================
+
+1. Generate reference (if necessary) output files in (amitex)/resultats/new_test/reference 
+2. create file 'new_test.py', in there make a function make_input that returns a amitex.input.Input instance.
+3. Add new_test to TESTS in testlist.py
+
+Files to look at and possibly add defs into:
+- mate.py: material definitions (like cas_tests/mate/mat_*)
+- algo.py: material definitions (like cas_tests/algorithmes/algo_*)
+- char.py: material definitions (like cas_tests/chargements/char_*)

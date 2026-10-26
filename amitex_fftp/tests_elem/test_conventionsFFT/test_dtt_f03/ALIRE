@@ -1,0 +1,9 @@
+Testing fftw3_f03 interface for dtt
+
+
+Usage : 
+	adjust compiler in Makefile
+	make
+	./test_DTT
+
+State : 19/9/24 : test DST1/iDST1 : OK

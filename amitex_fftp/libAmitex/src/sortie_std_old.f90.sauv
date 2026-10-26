@@ -1,0 +1,1396 @@
+!123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789
+!===================================================================================================
+!!
+!>  INITIALISATION DES FICHIERS DE SORTIE:  INITSORTIE_STD, SORTIE_STD
+!!
+!===================================================================================================
+!!                                                   DESCRIPTION GENERALE
+!!-----------------------------------------------------------------------
+!!
+!! LES FONCTIONS: initSortie_std, et sortie_std
+!!
+!! Le fichier de sortie standard contient des donnees choisies par l'utilisateur
+!!   l'entete est ecrite dans la fonction "initSortie_std" de ce fichier
+!!   les donnees sont ecrites a chaque pas de temps et definies dans la
+!!   fonction "sortie_std" de ce fichier
+!!
+!!
+!===================================================================================================
+module sortie_std_mod
+
+  use ISO_FORTRAN_ENV
+
+  use MPI
+  use decomp_2d
+  use material_mod
+  use loading_mod
+  use param_algo_mod
+  use error_mod
+  use field_mod
+  use green_mod
+  use amitex_mod
+
+implicit none
+
+  private
+
+  private :: variance_to_std, detF
+
+  public  :: initSortie_std, sortie_std, sortie_std_macro, &
+             init_matcomp_sortie, init_buffers, desallocation_sortie_std 
+
+contains
+
+!=======================================================================
+!           FONCTION INITSORTIE_STD
+!-----------------------------------------------------------------------
+!
+!>Permet d'ecrire l'en-tete des fichiers de sortie standards
+!!
+!!           Cet en-tete est a ecrire en utilisant la fonction " write(Fstd,"FMT") "
+!!           ou "FMT" est le format des donnees a ecrire.
+!! \param[in]       Fstd0: (entier)  unite logique du fichier sortie standard (fichier d'information)
+!! \param[in]       numM: (entier) si > 0 : numero de materiau correspondant au fichier (moyenne par zone)
+!!                                 si < 0 : - nombre de materiaux dans le domaine (moyenne par materiau)
+!!                                 si = 0 : on ecrit les moyennes globales
+!!
+!!
+!!
+!!-----------------------------------------------------------------------
+!!                               IMPORTANT \n 
+!!Lors de l'appel de "write" il faut utiliser l'unite logique "Fstd". \n 
+!!DANS LE CAS CONTRAIRE: on ne peut pas garantir que l'entete soit ecrit
+!!                       dans le bon fichier 
+!=======================================================================
+subroutine initSortie_std(Fstd0,numM)
+
+  use param_algo_mod
+  use decomp_2d
+  use loading_mod 
+
+  implicit none
+  !-----------------------------------------------------------------------
+  !variables non modifiables
+  integer, intent(in)           :: Fstd0, numM
+  !-----------------------------------------------------------------------
+
+  integer(kind = 8)             :: p,p1,p2,p3,p4,nb_colonnes,i,nb_lignes,ivar
+                                        ! nb_colonnes : permet de suivre la description des colonnes dans l'entete
+                                        ! nb_lignes : nombre de lignes de 0 a mettre apres l'entete
+  real(mytype),dimension(max(6*algo_param%nVarD+1,31))   :: tab_null  
+                                        ! tableau de valeur nulle pour ecrire la ligne de 0
+  character(len=8)              :: p1_char,p2_char,p3_char,p4_char 
+                                        ! nombre de colonnes dans les fichiers => utile pour la construction des "format" d'ecriture
+                                        ! mecanique : p1 et p2 (valeurs moyennes et ecarts types)
+                                        ! diffusion : p3 et p4 (valeurs moyennes et ecarts types)   
+                                        ! astuce : on ne rajoute pas d'espace (1X) pour l'ecriture des ecarts-types (positifs) 
+                                     
+  character(len=100)            :: format
+
+  !! tableau de valeurs nulles
+  tab_null = 0._mytype 
+
+  !! identification des nombres de colonnes
+     if (algo_param%HPP) then
+       p1 = 13
+       p2 = 12
+     else
+       p1 = 31
+       p2 = 30
+     end if
+     p = 6*algo_param%nVarD
+     p3 = p+1
+     p4 = p
+     write(p1_char,"(I4)") p1 
+     write(p2_char,"(I4)") p2 
+     write(p3_char,"(I4)") p3 
+     write(p4_char,"(I4)") p4 
+
+
+  if(algo_param%Mechanics .and. algo_param%Diffusion) then  !!-----MECANIQUE ET DIFFUSION A TRAITER
+     write(Fstd0,"(A)")"# sortie_STD : MECANIQUE ET DIFFUSION NON ENCORE PRIS EN COMPTE"
+  end if
+
+  
+  if(numM>0) then
+     !entete du fichier contenant les moyennes par zones pour le materiau numM
+     write(Fstd0,"(A)")"# Le fichier est ecrit avec les zones a la suite des autres"
+     write(Fstd0,"(A)")"# Exemple en gnuplot pour tracer la contrainte moyenne xx en fonction&
+          & de la deformation moyenne xx dans la zone i"
+     if(algo_param%HPP) then
+        write(Fstd0,"(A)")"# plot ""fichier.zstd"" every nbZone::i-1 u 8:2"
+     else
+        write(Fstd0,"(A)")"# plot ""fichier.zstd"" every nbZone::i-1 u 17:2"
+     end if
+     write(Fstd0,"(A)")"# ou nbZone est le nombre de zones dans le materiau"
+     !! Si on calcule les moyennes par zone on n'ecrit pas de lignes de 0 a cause des variables internes qui ne valent pas toujours 0
+     nb_lignes = 0
+  elseif(numM<0) then
+     !entete du fichier contenant les moyennes par materiau
+     !! -numM est le nombre de materiaux et on ecrit une ligne de 0 par materiau
+     nb_lignes = -numM 
+     write(Fstd0,"(A)")"# Le fichier est ecrit avec les materiaux a la suite des autres"
+     write(Fstd0,"(A)")"# Exemple en gnuplot pour tracer la contrainte moyenne xx en fonction&
+          & de la deformation moyenne xx dans le materiau i"
+     if(algo_param%HPP) then
+        write(Fstd0,"(A)")"# plot ""fichier.mstd"" every nbMat::i-1 u 8:2"
+     else
+        write(Fstd0,"(A)")"# plot ""fichier.mstd"" every nbMat::i-1 u 17:2"
+     end if
+     write(Fstd0,"(A)")"# ou nbMat est le nombre de materiaux dans le domaine"
+  else
+     !! Si numM = 0, on ecrit les moyennes globales et une ligne de 0
+     nb_lignes = 1
+  end if
+
+
+  !! Debut de la description des colonnes
+  write(Fstd0,"(A)")   "#   1ere colonne : le temps"
+  nb_colonnes=1
+  if(algo_param%Mechanics) then  !!------------------MECANIQUE
+!  write(Fstd0,"(A)")   "#   Quantites MECANIQUE"
+    if(algo_param%HPP) then
+       write(Fstd0,"(A)")"#   2-7e colonne : la contrainte moyenne en xx,yy,zz,xy,xz,yz"
+       write(Fstd0,"(A)")"#  8-13e colonne : la deformation moyenne en xx,yy,zz,xy,xz,yz"
+       write(Fstd0,"(A)")"# 14-19e colonne : l'ecart type de la contrainte moyenne en &
+          &xx,yy,zz,xy,xz,yz"
+       write(Fstd0,"(A)")"# 20-25e colonne : l'ecart type de la deformation moyenne en &
+          &xx,yy,zz,xy,xz,yz"
+       nb_colonnes = 26
+    else
+       write(Fstd0,"(A)")"#   2-7e colonne : la contrainte de Cauchy moyenne en &
+          &xx,yy,zz,xy,xz,yz"
+       write(Fstd0,"(A)")"#  8-16e colonne : la contrainte de Piola-Kirchhoff moyenne en &
+          &xx,yy,zz,xy,xz,yz,yx,zx,zy"
+       write(Fstd0,"(A)")"# 17-22e colonne : la deformation de Green-Lagrange moyenne en &
+          &xx,yy,zz,xy,xz,yz"
+       write(Fstd0,"(A)")"# 23-31e colonne : le gradient de u moyen en &
+          &xx,yy,zz,xy,xz,yz,yx,zx,zy"
+       write(Fstd0,"(A)")"# 32-37e colonne : l'ecart type de la contrainte de Cauchy  &
+          &xx,yy,zz,xy,xz,yz"
+       write(Fstd0,"(A)")"# 38-46e colonne : l'ecart type de la contrainte de Piola-Kirchhoff  &
+          &xx,yy,zz,xy,xz,yz,yx,zx,zy"
+       write(Fstd0,"(A)")"# 47-52e colonne : l'ecart type de la deformation de Green-Lagrange  &
+          &xx,yy,zz,xy,xz,yz"
+       write(Fstd0,"(A)")"# 53-61e colonne : l'ecart type du gradient de u  &
+          &xx,yy,zz,xy,xz,yz,yx,zx,zy"
+       nb_colonnes = 62
+    end if
+  
+
+    !! Pour l'instant on ecrit les moyennes des variable internes uniquement par zone
+    if(numM>0) then
+       !! On parcourt les variables internes        
+       do p=1,size(extract%VarSTD(numM)%val,kind=8)
+          ! si on doit extraire la variable interne
+          if(extract%varSTD(numM)%val(p) == 1) then
+             write(Fstd0,"(A,I0,A,I0)")"# ",nb_colonnes,"e colonne : la valeur moyenne de la variable interne ",p
+             write(Fstd0,"(A,I0,A,I0)")"# ",nb_colonnes+1,"e colonne : l'ecart type de la variable interne ",p
+             nb_colonnes = nb_colonnes +2
+          end if
+       end do
+    end if
+
+  else if (algo_param%Diffusion) then   !!------------DIFFUSION
+  write(Fstd0,"(A)")   "#   Quantites DIFFUSION"
+     do ivar=1,algo_param%nVarD 
+       p=nb_colonnes+(ivar-1)*12 + 1
+       write(Fstd0,"(A,I0,A,I0,A,I0,A)")"#   ",p,"-",p+2,"e colonne : le flux moyen (",ivar,") en x,y,z"
+       write(Fstd0,"(A,I0,A,I0,A,I0,A)")"#   ",p+3,"-",p+5,"e colonne : le gradient moyen (",ivar,") en x,y,z"
+       write(Fstd0,"(A,I0,A,I0,A,I0,A)")"#   ",p+6,"-",p+8,"e colonne : l'ecart-type du flux (",ivar,") en x,y,z"
+       write(Fstd0,"(A,I0,A,I0,A,I0,A)")"#   ",p+9,"-",p+11,"e colonne : l'ecart-type du gradient (",ivar,") en x,y,z"
+     end do
+     nb_colonnes=nb_colonnes+12*(algo_param%nVarD)
+  end if
+  
+  ! on ajoute le nombre d'iteration au fichier des moyennes globales (.std)
+  if (numM==0) then
+     write(Fstd0,"(A,I0,A)")"#    ",nb_colonnes,"e colonne : nombre d'iterations necessaires pour ce pas de &
+          &chargement"
+  end if
+
+  !! Ecritures des lignes de zeros initiales (si besoin : pas pour les fichiers zstd)
+  !!        signification de 1X : on ajoute un espace, necessaire pour les quantites potistives ou negatives
+  !!                              pas necessaire pour les ecarts-types (>0) => espace = la place du signe -
+  do i=1,nb_lignes
+  if (algo_param%Mechanics .and. (.not. algo_param%Diffusion)) then  !-----MECA PURE
+     if (numM==0) then
+       format="("//trim(p1_char)//"(E15.8,1X),"//trim(p2_char)//"E15.8,I4)"
+       write(Fstd0,fmt=trim(format)) tab_null(1:p1),tab_null(1:p2),0
+     else 
+       format="("//trim(p1_char)//"(E15.8,1X),"//trim(p2_char)//"E15.8)"
+       write(Fstd0,fmt=trim(format)) tab_null(1:p1),tab_null(1:p2)
+     end if
+  end if
+  if (algo_param%Diffusion .and. (.not. algo_param%Mechanics)) then  !-----DIFFUSION PURE
+     if (numM==0) then
+       format="("//trim(p3_char)//"(E15.8,1X),"//trim(p4_char)//"E15.8,I4)"
+       write(Fstd0,fmt=trim(format)) tab_null(1:p3),tab_null(1:p4),0
+     else 
+       format="("//trim(p3_char)//"(E15.8,1X),"//trim(p4_char)//"E15.8)"
+       write(Fstd0,fmt=trim(format)) tab_null(1:p3),tab_null(1:p4)
+     end if
+  end if
+  if (algo_param%Diffusion .and. algo_param%Mechanics) then          !-----MECANIQUE & DIFFUSION
+     if (numM==0) then
+       format="("//trim(p1_char)//"(E15.8,1X),"//trim(p2_char)//"E15.8,"//trim(p3_char)//"(E15.8,1X),"//trim(p4_char)//"E15.8,I4)"
+       write(Fstd0,fmt=trim(format)) tab_null(1:p1),tab_null(1:p2),tab_null(1:p3),tab_null(1:p4),0
+     else 
+       format="("//trim(p1_char)//"(E15.8,1X),"//trim(p2_char)//"E15.8,"//trim(p3_char)//"(E15.8,1X),"//trim(p4_char)//"E15.8)"
+       write(Fstd0,fmt=trim(format)) tab_null(1:p1),tab_null(1:p2),tab_null(1:p3),tab_null(1:p4)
+     end if
+  end if
+  end do !fin boucle sur nombre de lignes
+
+
+     
+
+end subroutine initSortie_std
+!==============================================================================
+
+!==============================================================================
+!       SUBROUTINE SORTIE_STD
+!------------------------------------------------------------------------------
+!> Ecriture des donnees sur le fichier de sortie standard.
+!! Fonction  appelee a chaque fin de pas de calcul. \n
+!! Permet de calculer et d'ecrire des grandeurs d'interet dans le fichier de sortie standard
+!! (par exemple : contrainte moyenne, moyennes par phase etc...).
+!!
+!!
+!! \param[in]      t: (reel) temps du chargement
+!! \param[in]      ind_tps: (entier) pas de temps courant
+!! \param[in]      nb_it: (entier) nombre d'iterations
+!!
+!! \param[out]     MoyStress, MoyDef: tableaux de reels (dimensions 6 ou 9), contraintes 
+!!                       et deformations moyennes utilisees comme valeurs initiales
+!!                       pour le pas de chargement suivant. En HPP, cela correspond a la
+!!                       contrainte de Cauchy et a la deformation. 
+!!                       En grandes transformations, cela correspond a la contrainte
+!!                       de Piola-Kirchhoff et au gradient du deplacement
+!!                 FluxDMoy,gradQDMoy : tableaux de reels dimension (3*nvarD)
+!!
+!!
+!!
+!!REMARQUE \n
+!!       Le rang du processus est defini par la variable 'nrank'
+!!
+!!
+!!------------------------------------------------------------------------------
+!!                 09/2016 CORRECTION BUG (PLANTAGES ALEATOIRES AVEC openMPI1.8)
+!!                                      AJOUT DE MPI_BARRIER DERRIERE MPI_REDUCE
+!!                                                  (mal compris mais ça marche)
+!!
+!!------------------------------------------------------------------------------
+!!                                                                     IMPORTANT \n
+!! Lors de l'appel de "write" il faut utiliser l'unite logique "Fstd". \n
+!! DANS LE CAS CONTRAIRE: on ne peut pas garantir que les donnees soient ecrites
+!!                       dans le bon fichier.\n
+!!
+!!!
+!! Les differents tableaux (pinceaux en X) sont definies de "xstart(i)" a "xend(i)" 
+!! ou i correspond a l'axe: 
+!! - 'x' si i=1
+!! - 'y' si i=2
+!! - 'z' si i=3
+!! Les valeurs de xstart et xend varient pour chaque processus.
+!!Donc pour atteindre une position specifique (par exemple Sig(2,5,1,:) )
+!! on prendra soin de verifier que ces coordonnees existent pour le processus
+!! (un processus est defini par son rang).\n
+!!
+!!------------------------------------------------------------------------------
+!!                                                                     IMPORTANT\n
+!!Les contraintes et deformations moyennes doivent etres calculees puisqu'elles
+!!sont utilisees comme valeurs initiales certains chargement
+!!(le premier chargement d'un ensemble defini dans le fichier xml de chargement).
+!!
+!!
+!!------------------------------------------------------------------------------
+!!                                                                     IMPORTANT\n
+!!Pour des raisons de precision sur les moyennes et les ecarts types, on utilise
+!!des variables temporaires de type double precision.
+!!
+!! Si tel n'est pas le cas, en simple precision, on obtient une valeur de
+!! E[X^2]-E[X]^2 negative et donc une valeur d'ecart type de "NaN"
+!!
+!==============================================================================
+subroutine sortie_std(t,ind_tps,nb_it,MoyStress,MoyDef,FluxDMoy,gradQDMoy)
+  !
+  !On considere ici que les phases sont definies par les numeros de materiau
+  !
+  use MPI
+  use decomp_2d
+  use material_mod
+  use loading_mod
+  use param_algo_mod
+  use error_mod
+  use amitex_mod
+
+  implicit none
+  !------------------------------------------------------------------------------
+  !variables non modifiables  
+  real(mytype), intent(in)   ::t
+  integer,       intent(in)  :: ind_tps
+  real(mytype),dimension(algo_param%nTensDef),intent(out):: MoyDef,MoyStress
+  real(mytype),dimension(3,algo_param%nVarD),intent(out)::FluxDMoy,gradQDMoy
+
+  integer, intent(in)        :: nb_it
+  integer                    :: ierror
+  integer(kind=8)            :: cell_size
+  !format d'affichage des reels
+  character(len=5),parameter :: FMT_real="E15.8"
+
+!  character(len=*),intent(in) :: fic_vtk
+  character(len=200) :: fic_std,fic_local
+
+  !------------------------------------------------------------------------------
+  !variables modifiables
+  ! moyennes, moyennes par phase et ecart types
+
+  !moyenne et ecart type des contraintes et deformation par zone
+  double precision              ::  Sdet_m   ! somme des determinants de F
+  double precision,dimension(6) ::  MS_m, ME_m,EctS_m, EctE_m
+  double precision,dimension(3,algo_param%nVarD) ::  MS_mD, ME_mD,EctS_mD, EctE_mD
+  double precision,dimension(merge(0,1,algo_param%HPP)*9) ::  MP_m,MG_m, EctP_m,EctG_m
+
+  !moyenne et ecart type des contraintes et deformation par materiau
+  double precision              ::  Sdet_z   ! somme des determinants de F
+  double precision,dimension(6) ::  MS_z,ME_z, EctS_z, EctE_z
+  double precision,dimension(3,algo_param%nVarD) ::  MS_zD,ME_zD, EctS_zD, EctE_zD
+  double precision,dimension(merge(0,1,algo_param%HPP)*9) ::  MP_z,MG_z, EctP_z,EctG_z
+
+  !moyenne et ecart type des contraintes et deformation sur la cellule
+  double precision              ::  Sdet   ! somme des determinants de F
+  double precision,dimension(6) ::  MS, ME,EctS, EctE
+  double precision,dimension(3,algo_param%nVarD) ::  MSD, MED,EctSD, EctED
+  double precision,dimension(merge(0,1,algo_param%HPP)*9) ::  MP, EctP,MG,EctG
+
+  !moyenne et ecart type des variables internes
+  double precision,allocatable,dimension(:)   :: varInt_z,EctVI_z,r_alloc_tmp
+  double precision                            :: vi_tmp
+
+  !variable de stockage reelle (temporaire)
+  double precision,dimension(6)     :: sig_tmp,def_tmp
+  double precision,dimension(3,algo_param%nVarD)     :: fluxd_tmp,gradqd_tmp
+
+  double precision,dimension(algo_param%nTensDef)    :: r_tmp
+  double precision,dimension(3,algo_param%nVarD)     :: rD_tmp
+  double precision,dimension(merge(0,1,algo_param%HPP)*9) :: gradu_tmp, PK1_tmp
+  double precision                                   :: det_tmp
+  ! indice de la variable de diffusion
+  integer                       :: ivar
+  ! indice et numero de materiau
+  integer                       :: i,numM
+  ! indices et numero de zone
+  integer(kind=8)               :: j,numZ,nbZone,k,l,p, indZone_min, indZone_max
+  ! nombre d'elements (zone ,materiau, temporaire)
+  integer(kind=8)               :: nZ, nM, n_tmp
+  ! tolerance sur l'ecart type
+  double precision,parameter                 :: eps=1e-10_8
+ 
+  ! variables pour la definition des formats
+  integer(kind=8)               :: p1,p2,p3,p4
+  character(len=8)              :: p1_char,p2_char,p3_char,p4_char 
+                                        ! nombre de colonnes dans les fichiers => utile pour la construction des "format" d'ecriture
+                                        ! mecanique : p1 et p2 (valeurs moyennes et ecarts types)
+                                        ! diffusion : p3 et p4 (valeurs moyennes et ecarts types)   
+                                        ! astuce : on ne rajoute pas d'espace (1X) pour l'ecriture des ecarts-types (positifs)  
+  character(len=200)            :: format
+ 
+  !nombre de voxels total
+  cell_size=int(xsize(1),kind=8)*int(ysize(2),kind=8)*int(zsize(3),kind=8)
+
+  !! identification des nombres de colonnes a ecrire
+     if (algo_param%HPP) then
+       p1 = 13
+       p2 = 12
+     else
+       p1 = 31
+       p2 = 30
+     end if
+     p = 6*algo_param%nVarD
+     p3 = p+1
+     p4 = p
+     write(p1_char,"(I4)") p1 
+     write(p2_char,"(I4)") p2 
+     write(p3_char,"(I4)") p3 
+     write(p4_char,"(I4)") p4 
+
+
+  !! Ouverture de fichier std et (ouverture,flush,fermeture) du fichier .zstd (pourquoi?)
+  fic_std = trim(fic_vtk)//".std"
+  if(nrank==0)then
+     !fichier .std
+     open(unit=Fstd, file=fic_std,form="formatted", status="old",position="append", action="write")
+     if(extract%printZSTD .AND. extract%tpsZSTD(ind_tps)) then
+        do i=1,nmateriaux
+           if(extract%printMeanZ(i)>0) then
+              write(fic_local,fmt="(A,I0,A)") trim(fic_vtk)//"_",i,".zstd"
+              open(unit=FZstd, file=trim(fic_local),form="formatted", status="old",&
+                   position="append", action="write")    
+              flush(FZstd)
+              close(FZstd)
+           end if
+        end do
+     end if
+  end if
+
+  !! INITIALISATION a 0
+  !! Moyennes et ecart-types des contraintes (S) et des deformations (E) 
+  !! dans tout le domaine
+
+  if (algo_param%Mechanics) then !-------MECANIQUE
+    MS=0        !Moyennes
+    ME=0
+    EctS=0      !Ecart-types
+    EctE=0
+    if(.NOT.algo_param%HPP) then !contraintes PK (P) et gradient de U (G) en Grandes Transfo.
+       Sdet=0
+       MP=0
+       MG=0
+       EctP=0
+       EctG=0
+    end if
+  end if
+  if (algo_param%Diffusion) then !-------DIFFUSION
+    MSD=0
+    MED=0
+    EctSD=0
+    EctED=0
+  end if
+
+
+  !! numM represente l'indice local du materiau
+  numM=1
+  do i=1,nmateriaux  !========================================================= BOUCLE SUR LES MATERIAUX
+     !! INITIALISATION a 0
+     !! Moyennes et ecart-types des contraintes (S) et des deformations (E) 
+     !! dans tout le materiau i
+     if (algo_param%Mechanics) then !-------MECANIQUE
+       MS_m=0
+       ME_m=0
+       EctS_m=0
+       EctE_m=0
+       if(.NOT.algo_param%HPP) then
+          Sdet_m=0
+          MP_m=0
+          MG_m=0
+          EctP_m=0
+          EctG_m=0
+       end if
+     end if
+     if (algo_param%Diffusion) then !-------DIFFUSION
+       MS_mD=0
+       ME_mD=0
+       EctS_mD=0
+       EctE_mD=0
+     end if
+
+     !! Nombre de voxels dans le materiau i
+     nM=0
+
+     !! Recherche du nombre total de zones du materiau i :
+     !! Si i est dans le processus alors i = MattotP(numM)%numM
+     !! car numM evolue de maniere croissante et suit l'indice global i
+     !! Les materiaux "Interphase", qui ne sont presents que sous forme de constituants de "voxels composites",
+     !! sont exclus 
+     j=0
+     if (numM <= size(MattotP)) then
+     if((MattotP(numM)%numM==i) .AND. (.NOT. mattotP(numM)%Interphase ))then
+        !! nbZone = Nombre de zones sur le pinceau
+        nbZone=size(MattotP(numM)%zone(:,1),kind=8)
+        !! j = Indice maximal des zones sur le pinceau
+        j=MattotP(numM)%zone(nbZone,2)
+     else
+        j=0
+     end if
+     end if
+     !! nbZone = Nombre de zones total
+     call MPI_BARRIER(MPI_COMM_WORLD,ierror) 
+     call MPI_Allreduce(j,nbZone,1,MPI_INTEGER8,MPI_MAX,MPI_COMM_WORLD,ierror)
+
+     !! indZone_Max representera l'indice du derner voxel de la zone numZ
+     indZone_max=0
+     !! numZ est l'indice de zone local
+     numZ=1
+
+     if (algo_param%Mechanics) then
+     if(extract%printMeanZ(i)>0 .AND. extract%tpsZSTD(ind_tps)) then
+        allocate(varInt_z(size(extract%varSTD(i)%val,kind=8)))
+        allocate(EctVI_z(size(extract%varSTD(i)%val,kind=8)))
+        allocate(r_alloc_tmp(size(extract%varSTD(i)%val,kind=8)))
+     end if
+     end if
+     
+     do j=1,nbZone   !------------------------------------------------BOUCLE SUR LES ZONES
+        !!                     EVALUATION DES MOY. ET ECART-TYPES PAR ZONE
+        !!---------------------------------------------------------------- 
+        !! INITIALISATION a 0
+        !! Moyennes et ecart-types des contraintes (S) et des deformations (E) 
+        !! dans tout la zone j materiau i
+        if(algo_param%Mechanics) then
+          MS_z=0
+          ME_z=0
+          EctS_z=0
+          EctE_z=0
+          if(.NOT.algo_param%HPP) then
+            Sdet_z=0
+            MP_z=0
+            MG_z=0
+            EctP_z=0
+            EctG_z=0
+          end if
+          if(extract%printMeanZ(i)>0 .AND. extract%tpsZSTD(ind_tps)) then
+            r_alloc_tmp=0         ! gcc-warning accepte (allocation dans boucle si)
+            varInt_z=0
+            EctVI_z=0
+          end if
+        end if
+        if (algo_param%Diffusion) then
+          MS_zD=0
+          ME_zD=0
+          EctS_zD=0
+          EctE_zD=0
+        end if
+
+        !! Si le materiau i et la zone j sont presents dans le pinceau
+        !! Si la zone j est dans le processus alors j = MattotP(numM)%zone(numZ,2)
+        !! car numZ evolue de maniere croissante et suit l'indice global j
+        nZ=0
+        if (numM <= size(MattotP)) then
+        if (numZ <= size(MattotP(numM)%zone(:,1),kind=8)) then
+        if(MattotP(numM)%numM==i .AND. &
+             MattotP(numM)%zone(numZ,2)==j ) then
+           !! Les voxels sont ordonnes par zone dans Mattotp(numM)%pos(k)
+           !! L'indice du dernier voxel de la zone numZ est donne par 
+           !! MattotP(numM)%zone(numZ,1)
+           !! Ainsi, les voxels de la zone numZ sont ceux qui vont de
+           !! indZone_max + 1 a MattotP(numM)%zone(numZ,1)
+           indZone_min=indZone_max+1
+           indZone_max=MattotP(numM)%zone(numZ,1)
+           
+           !! On parcourt ces voxels
+           do k=indZone_min,indZone_max
+              l=MattotP(numM)%pos(k)
+              if (algo_param%Mechanics) then  !-------MECANIQUE
+              sig_tmp=dble(sig(l,:))
+              if(algo_param%HPP) then
+                 def_tmp=dble(def(l,:))
+                 !! Somme sur la zone des contraintes, deformations
+                 MS_z=MS_z+sig_tmp
+                 ME_z=ME_z+def_tmp
+                 !! Somme sur la zone des carres des contraintes, deformations
+                 EctS_z=EctS_z+sig_tmp*sig_tmp
+                 EctE_z=EctE_z+def_tmp*def_tmp
+              else
+                 gradu_tmp=dble(Def(l,:))
+                 call detF(gradu_tmp,det_tmp)
+                 !det_tmp=1._mytype ! permet de shunter l'effet de la variation de volume sur 
+                                   ! moy et ecart-types de la contrainte de Cauchy
+                 PK1_tmp=dble(PK1(l,:))
+                 !! On calcule le tenseur de Green-Lagrange en ce point
+                 def_tmp(1) = gradu_tmp(1) + 0.5_8 * (gradu_tmp(1)**2 &
+                      + gradu_tmp(7)**2 + gradu_tmp(8)**2)
+                 def_tmp(2) = gradu_tmp(2) + 0.5_8 * (gradu_tmp(2)**2 &
+                      + gradu_tmp(4)**2 + gradu_tmp(9)**2)
+                 def_tmp(3) = gradu_tmp(3) + 0.5_8 * (gradu_tmp(3)**2 &
+                      + gradu_tmp(5)**2 + gradu_tmp(6)**2)
+                 def_tmp(4) = 0.5_8 * (gradu_tmp(4) + gradu_tmp(7) + &
+                      gradu_tmp(1)*gradu_tmp(4)+ gradu_tmp(7)*gradu_tmp(2) &
+                      + gradu_tmp(8)*gradu_tmp(9))
+                 def_tmp(5) = 0.5_8 * (gradu_tmp(5) + gradu_tmp(8) + &
+                      gradu_tmp(1)*gradu_tmp(5) + gradu_tmp(7)*gradu_tmp(6) + &
+                      gradu_tmp(8)*gradu_tmp(3))
+                 def_tmp(6) = 0.5_8 * (gradu_tmp(6) + gradu_tmp(9) + &
+                      gradu_tmp(4)*gradu_tmp(5) + gradu_tmp(2)*gradu_tmp(6) + &
+                      gradu_tmp(9)*gradu_tmp(3))
+                 !! Somme sur la zone des contraintes, deformations,...
+                 !! pour Cauchy, on prend en compre la variation de volume
+                 Sdet_z = Sdet_z + det_tmp
+                 MS_z = MS_z + sig_tmp * det_tmp
+                 ME_z = ME_z + def_tmp
+                 MP_z = MP_z + PK1_tmp
+                 MG_z = MG_z + gradu_tmp
+                 !! Somme sur la zone des carres des contraintes, deformations,...
+                 EctS_z = EctS_z + sig_tmp*sig_tmp * det_tmp
+                 EctE_z = EctE_z + def_tmp*def_tmp
+                 EctP_z = EctP_z + PK1_tmp*PK1_tmp
+                 EctG_z = EctG_z + gradu_tmp*gradu_tmp
+              end if
+              !! Si besoin on calcule les moyennes par zone pour les 
+              !! variables internes demandees
+              if(extract%printMeanZ(i)>0 .AND. extract%tpsZSTD(ind_tps)) then
+                 !! On parcourt les variables internes        
+                 do p=1,size(extract%VarSTD(i)%val,kind=8)
+                    ! si on doit extraire la variable interne
+                    if(extract%varSTD(i)%val(p) == 1) then
+                       vi_tmp=dble(MattotP(numM)%VarInt(p,k))
+                       ! Somme sur la zone
+                       varInt_z(p)=varInt_z(p)+vi_tmp
+                       !! Somme sur la zone du carre de la variable interne
+                       EctVI_z(p)=EctVI_z(p)+vi_tmp*vi_tmp
+                    end if
+                 end do
+              end if
+              end if                          !-------FIN MECANIQUE
+              if (algo_param%Diffusion) then  !-------DIFFUSION
+                 FluxD_tmp=dble(FluxD(l,:,:))
+                 GradQD_tmp=dble(GradQD(l,:,:))
+                 !! Somme sur la zone des contraintes, deformations
+                 MS_zD=MS_zD+FluxD_tmp
+                 ME_zD=ME_zD+GradQD_tmp
+                 !! Somme sur la zone des carres des contraintes, deformations
+                 EctS_zD=EctS_zD+FluxD_tmp*FluxD_tmp
+                 EctE_zD=EctE_zD+gradQD_tmp*gradQD_tmp
+              end if                          !-------FIN DIFFUSION
+           end do
+           nZ=indZone_max-indZone_min+1
+           numZ=numZ+1
+        else
+           nZ=0
+        end if
+        end if
+        end if
+
+        !! SOMME DES VALEURS SUR CHAQUE PROCESSUS ET ENVOI SUR PROCESSUS 0
+        !!---------------------------------------------------------------- 
+        n_tmp=nZ
+        call MPI_BARRIER(MPI_COMM_WORLD,ierror) 
+        call MPI_Reduce(n_tmp,nZ,1, MPI_INTEGER8,MPI_SUM,0,MPI_COMM_WORLD,ierror)
+        call MPI_BARRIER(MPI_COMM_WORLD,ierror) 
+
+        if (algo_param%Mechanics) then        !-------MECANIQUE
+          r_tmp(1:6)=MS_z
+          call MPI_Reduce(r_tmp(1:6),MS_z,6,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_WORLD,ierror)
+          call MPI_BARRIER(MPI_COMM_WORLD,ierror) 
+          r_tmp(1:6)=ME_z
+          call MPI_Reduce(r_tmp(1:6),ME_z,6,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_WORLD,ierror)
+          call MPI_BARRIER(MPI_COMM_WORLD,ierror) 
+          r_tmp(1:6)=EctS_z
+          call MPI_Reduce(r_tmp(1:6),EctS_z,6,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_WORLD,ierror)
+          call MPI_BARRIER(MPI_COMM_WORLD,ierror) 
+          r_tmp(1:6)=EctE_z
+          call MPI_Reduce(r_tmp(1:6),EctE_z,6,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_WORLD,ierror)
+          call MPI_BARRIER(MPI_COMM_WORLD,ierror) 
+          if (.NOT. algo_param%HPP) then
+             !! Parametres utiles uniquement en grandes transformations
+             r_tmp=Sdet_z
+             call MPI_Reduce(r_tmp,Sdet_z,1,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_WORLD,ierror)
+             call MPI_BARRIER(MPI_COMM_WORLD,ierror) 
+             r_tmp=MP_z
+             call MPI_Reduce(r_tmp,MP_z,9,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_WORLD,ierror)
+             call MPI_BARRIER(MPI_COMM_WORLD,ierror) 
+             r_tmp=MG_z
+             call MPI_Reduce(r_tmp,MG_z,9,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_WORLD,ierror)
+             call MPI_BARRIER(MPI_COMM_WORLD,ierror) 
+             r_tmp=EctP_z
+             call MPI_Reduce(r_tmp,EctP_z,9,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_WORLD,ierror)
+             call MPI_BARRIER(MPI_COMM_WORLD,ierror) 
+             r_tmp=EctG_z
+             call MPI_Reduce(r_tmp,EctG_z,9,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_WORLD,ierror)
+             call MPI_BARRIER(MPI_COMM_WORLD,ierror) 
+          end if
+          if(extract%printMeanZ(i)>0 .AND. extract%tpsZSTD(ind_tps) .AND. (size(extract%varSTD(i)%val,kind=4)>0)) then
+             !! On parcourt les variables internes        
+             r_alloc_tmp=varInt_z
+             call MPI_Reduce(r_alloc_tmp,varInt_z,size(extract%varSTD(i)%val,kind=4),&
+                  MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_WORLD,ierror)
+             call MPI_BARRIER(MPI_COMM_WORLD,ierror) 
+             r_alloc_tmp=EctVI_z
+             call MPI_Reduce(r_alloc_tmp,EctVI_z,size(extract%varSTD(i)%val,kind=4),&
+                  MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_WORLD,ierror)
+             call MPI_BARRIER(MPI_COMM_WORLD,ierror) 
+          end if
+        end if                                 !------FIN MECANIQUE
+        if (algo_param%Diffusion) then         !------DIFFUSION
+           do ivar=1,algo_param%nVarD
+             rD_tmp(1:3,ivar)=MS_zD(1:3,ivar)
+             call MPI_Reduce(rD_tmp(1:3,ivar),MS_zD(1:3,ivar),3,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_WORLD,ierror)
+             call MPI_BARRIER(MPI_COMM_WORLD,ierror) 
+             rD_tmp(1:3,ivar)=ME_zD(1:3,ivar)
+             call MPI_Reduce(rD_tmp(1:3,ivar),ME_zD(1:3,ivar),3,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_WORLD,ierror)
+             call MPI_BARRIER(MPI_COMM_WORLD,ierror) 
+             rD_tmp(1:3,ivar)=EctS_zD(1:3,ivar)
+             call MPI_Reduce(rD_tmp(1:3,ivar),EctS_zD(1:3,ivar),3,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_WORLD,ierror)
+             call MPI_BARRIER(MPI_COMM_WORLD,ierror) 
+             rD_tmp(1:3,ivar)=EctE_zD(1:3,ivar)
+             call MPI_Reduce(rD_tmp(1:3,ivar),EctE_zD(1:3,ivar),3,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_WORLD,ierror)
+             call MPI_BARRIER(MPI_COMM_WORLD,ierror) 
+           end do
+        end if                                 !------FIN DIFFUSION        
+
+        !!------------------------------------------------------------------------------------------
+        !!                                                      AVANT SORTIE DE BOUCLE SUR LES ZONES
+        !!      Sur le processeur 0 :    
+        !!          Evaluations                 
+        !!             Somme par materiau des sommes et sommes de carres evalues par zone 
+        !!             Moyennes et ecart-type sur les zones
+        !!          Ecriture sur le fichier .zstd des quantites par zones
+
+        if(nrank==0)then
+           !!                                                     EVALUATIONS
+           !!----------------------------------------------------------------
+           if (algo_param%Mechanics) then  !---------MECANIQUE
+           !! Somme sur le materiau des contraintes, deformations
+           MS_m=MS_m+MS_z
+           ME_m=ME_m+ME_z
+           if(.not. algo_param%HPP) Sdet_m = Sdet_m + Sdet_z
+           !! Somme sur le materiau des carres des contraintes, deformations
+           EctS_m=EctS_m+EctS_z
+           EctE_m=EctE_m+EctE_z
+           !! Nombre d'elements du materiau
+           nM=nM+nZ
+           !! Moyennes des contraintes et deformations sur la zone 
+           !! pour Cauchy en grandes def, on prend en compte la variation de volume
+           if(algo_param%HPP)         MS_z=MS_z/nZ
+           if(.not. algo_param%HPP)   MS_z=MS_z/Sdet_z
+           ME_z=ME_z/nZ
+           !! Ecarts types des contraintes et deformations sur la zone 
+           if(algo_param%HPP)         EctS_z=EctS_z/nZ-MS_z*MS_z
+           if(.not. algo_param%HPP)   EctS_z=EctS_z/Sdet_z-MS_z*MS_z
+           EctE_z=EctE_z/nZ-ME_z*ME_z
+           !! Ramene les variances negatives a 0
+           call variance_to_std(MS_z,EctS_z,eps,6)
+           call variance_to_std(ME_z,EctE_z,eps,6)
+           if(.NOT. algo_param%HPP) then
+              !! Les memes calculs que precedemment mais sur les variables PK1 et GradU
+              MP_m=MP_m+MP_z
+              MG_m=MG_m+MG_z
+              EctP_m=EctP_m+EctP_z
+              EctG_m=EctG_m+EctG_z
+              MP_z=MP_z/nZ
+              MG_z=MG_z/nZ
+              EctP_z=EctP_z/nZ-MP_z*MP_z
+              EctG_z=EctG_z/nZ-MG_z*MG_z
+              !! Ramene les variances negatives a 0
+              call variance_to_std(MG_z,EctG_z,eps,9)
+              call variance_to_std(MP_z,EctP_z,eps,9)
+           end if
+           end if      !---------FIN MECANIQUE
+
+           if (algo_param%Diffusion) then  !---------DIFFUSION
+           !! Somme sur le materiau des fluxD, gradQD
+           MS_mD=MS_mD+MS_zD
+           ME_mD=ME_mD+ME_zD
+           !! Somme sur le materiau des carres des fluxD, gradQD
+           EctS_mD=EctS_mD+EctS_zD
+           EctE_mD=EctE_mD+EctE_zD
+           !! Nombre d'elements du materiau
+           nM=nM+nZ
+           !! Moyennes des fluxD, gradQD sur la zone
+           MS_zD=MS_zD/nZ
+           ME_zD=ME_zD/nZ
+           !! Ecarts types des fluxD, gradQD sur la zone 
+           EctS_zD=EctS_zD/nZ-MS_zD*MS_zD
+           EctE_zD=EctE_zD/nZ-ME_zD*ME_zD
+           !! Ramene les variances negatives a 0
+           do ivar=1,algo_param%nVarD
+             call variance_to_std(MS_zD(:,ivar),EctS_zD(:,ivar),eps,3)
+             call variance_to_std(ME_zD(:,ivar),EctE_zD(:,ivar),eps,3)
+           end do
+           end if      !---------FIN DIFFUSION
+
+
+           !!                                          ECRITURE Fichier .zstd
+           !!   + EVAUATION moyenne et ecart-type pour les Variables Internes
+           !!----------------------------------------------------------------
+           if(extract%printMeanZ(i)>0 .AND. extract%tpsZSTD(ind_tps)) then
+              write(fic_local,fmt="(A,I0,A)") trim(fic_vtk)//"_",i,".zstd"  !nom de fichier de sortie
+              open(unit=FZstd, file=trim(fic_local),form="formatted", status="old",position="append", action="write")
+              if (algo_param%Mechanics .and. .not.algo_param%Diffusion) then !---MECANIQUE pure
+
+                !! ECRITURE 
+                format="("//trim(p1_char)//"(E15.8,1X),"//trim(p2_char)//"E15.8)"
+                if(algo_param%HPP) then
+                   write(FZstd,fmt=trim(format),advance="no") t,MS_z,ME_z,EctS_z,EctE_z
+                else 
+                   write(FZstd,fmt=trim(format),advance="no") t,MS_z,MP_z,ME_z,MG_z,EctS_z,EctP_z,EctE_z,EctG_z
+                end if
+                flush(FZstd)
+                
+                !! EVALUATION moy. ec.type. variables internes
+                !! Moyenne sur la zone
+                varInt_z=varInt_z/nZ                  ! gcc-warning accepte (allocation dans boucle si)
+                !! Ecart type sur la zone 
+                EctVI_z=EctVI_z/nZ-varInt_z*varInt_z  ! gcc-warning accepte (allocation dans boucle si)
+                !! Ramene les variances negatives a 0
+                call variance_to_std(varInt_z,EctVI_z,eps,size(extract%VarSTD(i)%val))
+              
+                !! AJOUT ECRITURES variables internes
+                !! \todo boucle sur les variables internes a ecrire
+                do p=1,size(extract%VarSTD(i)%val,kind=8)
+                   ! si on doit extraire la variable interne, on l'ecrit avec l'ecart type
+                   if(extract%varSTD(i)%val(p) == 1) then
+                        write(FZstd,fmt="(1X,2"//FMT_real//")",advance="no") varInt_z(p),EctVI_z(p)
+                        flush(FZstd)
+                   end if
+                end do
+              end if  
+              if (algo_param%Diffusion .and. .not.algo_param%Mechanics) then !---DIFFUSION pure
+                format="("//trim(p3_char)//"(E15.8,1X),"//trim(p4_char)//"E15.8)"
+                write(FZstd,fmt=trim(format),advance="no") t,MS_zD(:,1),ME_zD(:,1),EctS_zD(:,1),EctE_zD(:,1)
+              end if
+           end if
+           close(FZstd)
+        end if  !------fin (if nrank==0) 
+
+     end do   !--------------------------------------------------------FIN DE BOUCLE SUR LES ZONES
+
+
+     if(allocated(varInt_z)) deallocate(varInt_z)
+     if(allocated(EctVI_z)) deallocate(EctVI_z)
+     if(allocated(r_alloc_tmp)) deallocate(r_alloc_tmp)
+
+     !!==========================================================================================
+     !!                                                  AVANT SORTIE DE BOUCLE SUR LES MATERIAUX
+     !!      Sur le processeur 0 :                    
+     !!          Somme sur la cellule des sommes et sommes de carres evalues par materiau 
+     !!          Ecriture sur le fichier .mstd des quantites par zones
+     !! 
+
+     if(nrank==0) then 
+        if (algo_param%Mechanics) then !---------MECANIQUE
+        !! Somme et moyenne sur la cellule des contraintes et deformations
+        Sdet = Sdet + Sdet_m
+        MS = MS+MS_m
+        ME = ME+ME_m
+        !! Somme sur la cellule des carres des contraintes et deformations
+        EctS=EctS+EctS_m
+        EctE=EctE+EctE_m
+        !! Moyennes des contraintes et deformations sur le materiau
+        if(algo_param%HPP)         MS_m=MS_m/nM
+        if(.not. algo_param%HPP)   MS_m=MS_m/Sdet_m
+        ME_m=ME_m/nM
+        !! Ecarts types des contraintes et deformations sur le materiau 
+        if(algo_param%HPP)         EctS_m=EctS_m/nM-MS_m*MS_m
+        if(.not. algo_param%HPP)   EctS_m=EctS_m/Sdet_m-MS_m*MS_m
+        EctE_m=EctE_m/nM-ME_m*ME_m
+       !! Evalue l'ecart-type  
+        call variance_to_std(MS_m,EctS_m,eps,6)
+        call variance_to_std(ME_m,EctE_m,eps,6)
+        if(.NOT. algo_param%HPP) then
+           !! Les memes calculs que precedemment mais sur les variables PK1 et GradU
+           MP=MP+MP_m
+           MG=MG+MG_m
+           EctP=EctP+EctP_m
+           EctG=EctG+EctG_m
+           MP_m=MP_m/nM
+           MG_m=MG_m/nM
+           EctP_m=EctP_m/nM-MP_m*MP_m
+           EctG_m=EctG_m/nM-MG_m*MG_m
+           !! Ramene les variances negatives a 0
+           call variance_to_std(MP_m,EctP_m,eps,9)
+           call variance_to_std(MG_m,EctG_m,eps,9)
+        end if
+        end if                  !---------FIN MECANIQUE
+
+        if (algo_param%Diffusion) then !---------DIFFUSION
+        !! Somme sur la cellule des contraintes et deformations
+        MSD=MSD+MS_mD
+        MED=MED+ME_mD
+        !! Somme sur la cellule des carres des contraintes et deformations
+        EctSD=EctSD+EctS_mD
+        EctED=EctED+EctE_mD
+        !! Moyennes des contraintes et deformations sur le materiau
+        MS_mD=MS_mD/nM
+        ME_mD=ME_mD/nM
+        !! Ecarts types des contraintes et deformations sur le materiau 
+        EctS_mD=EctS_mD/nM-MS_mD*MS_mD
+        EctE_mD=EctE_mD/nM-ME_mD*ME_mD
+        !! Evalue l'ecart-type  
+        do ivar=1,algo_param%nVarD
+          call variance_to_std(MS_mD(:,ivar),EctS_mD(:,ivar),eps,3)
+          call variance_to_std(ME_mD(:,ivar),EctE_mD(:,ivar),eps,3)
+        end do
+        end if                  !---------FIN DIFFUSION
+
+        !! ECRITURE Fichier .mstd
+        open(unit=FMstd, file=trim(fic_vtk)//".mstd",form="formatted", status="old",position="append", action="write")
+        if (algo_param%Mechanics .and. .not.algo_param%Diffusion) then !-Mecanique pure
+          format="("//trim(p1_char)//"(E15.8,1X),"//trim(p2_char)//"E15.8)"
+          if(algo_param%HPP) then
+              write(FMstd,fmt=trim(format)) t,MS_m,ME_m,EctS_m,EctE_m
+          else 
+              write(FMstd,fmt=trim(format)) t,MS_m,MP_m,ME_m,MG_m,EctS_m,EctP_m,EctE_m,EctG_m
+          end if
+        end if
+        if (algo_param%Diffusion .and. .not.algo_param%Mechanics) then  !-Diffusion pure
+              format="("//trim(p3_char)//"(E15.8,1X),"//trim(p4_char)//"E15.8)"
+              write(FMstd,fmt=trim(format)) t,MS_mD(:,1),ME_mD(:,1),EctS_mD(:,1),EctE_mD(:,1)
+        end if
+        flush(FMstd)
+        close(FMstd)
+
+     end if
+     call MPI_BARRIER(MPI_COMM_WORLD,ierror) 
+
+     ! on incremente le numero de materiau local (si le matériau i etait present dans le pinceau)
+     if (numM <= size(MattotP)) then
+        if(MattotP(numM)%numM==i) numM=numM+1         
+     end if
+  end do 
+  !!===========================================================================FIN BOUCLE SUR LES MATERIAUX
+
+
+  !!==========================================================================================
+  !!                                                              AVANT SORTIE DE LA PROCEDURE
+  !!      Sur le processeur 0 :                    
+  !!          Calcul et ecriture sur le fichier .std des quantites SUR LA CELLULE
+  !! 
+
+  if(nrank==0) then
+     if (algo_param%Mechanics) then !---------MECANIQUE
+     !! Moyennes sur la cellule
+     if(algo_param%HPP)         MS=MS/cell_size
+     if(.not. algo_param%HPP)   MS=MS/Sdet
+     ME=ME/cell_size
+
+     !! Ecarts types sur la cellule
+     if(algo_param%HPP)               EctS=EctS/cell_size-MS*MS
+     if(.not. algo_param%HPP)         EctS=EctS/Sdet-MS*MS
+     EctE=EctE/cell_size-ME*ME
+     call variance_to_std(MS,EctS,eps,6)
+     call variance_to_std(ME,EctE,eps,6)
+     if(.NOT. algo_param%HPP) then
+        !! Les memes calculs que precedemment mais sur les variables PK1 et GradU
+        MP = MP/cell_size
+        MG = MG/cell_size
+        EctP=EctP/cell_size-MP*MP
+        EctG=EctG/cell_size-MG*MG
+        !! Ramene les variances negatives a 0
+        call variance_to_std(MP,EctP,eps,9)
+        call variance_to_std(MG,EctG,eps,9)
+     end if
+     end if             !----------FIN MECANIQUE
+
+     if (algo_param%Diffusion) then !---------DIFFUSION
+     !! Ecarts types sur la cellule
+     MSD=MSD/cell_size
+     MED=MED/cell_size
+     EctSD=EctSD/cell_size-MSD*MSD
+     EctED=EctED/cell_size-MED*MED
+     call variance_to_std(MS,EctS,eps,6)
+     call variance_to_std(ME,EctE,eps,6)
+     do ivar=1,algo_param%nVarD
+       call variance_to_std(MSD(:,ivar),EctSD(:,ivar),eps,3)
+       call variance_to_std(MED(:,ivar),EctED(:,ivar),eps,3)
+     end do
+     end if             !----------FIN DIFFUSION
+
+     !! ECRITURE Fichier .std
+     open(unit=Fstd, file=fic_std,form="formatted", status="old",position="append", action="write")
+     if (algo_param%Mechanics .and. .not.algo_param%Diffusion) then !-Mecanique pure
+       format="("//trim(p1_char)//"(E15.8,1X),"//trim(p2_char)//"E15.8,I4)"
+       if(algo_param%HPP) then
+           write(Fstd,fmt=trim(format)) t,MS,ME,EctS,EctE,nb_it
+       else 
+           write(Fstd,fmt=trim(format)) t,MS,MP,ME,MG,EctS,EctP,EctE,EctG,nb_it
+       end if
+     end if
+     if (algo_param%Diffusion .and. .not.algo_param%Mechanics) then  !-Diffusion pure
+           format="("//trim(p3_char)//"(E15.8,1X),"//trim(p4_char)//"E15.8,I4)"
+           write(Fstd,fmt=trim(format)) t,MSD(:,1),MED(:,1),EctSD(:,1),EctED(:,1),nb_it
+     end if
+     flush(Fstd)
+     close(Fstd)
+
+     if (algo_param%Diffusion .and. algo_param%Mechanics) then
+        call amitex_abort("Le couplage Diffusion ET Mecanique n'est pas encore pris en compte (sortie_std)",-2,0)
+     end if
+
+  
+     !! on affecte les grandeurs moyennes de sortie de la procédure
+     if(algo_param%Mechanics) then
+       if(algo_param%HPP) then
+          MoyDef = real(ME,mytype)
+          MoyStress = real(MS,mytype)
+       else
+          MoyDef = real(MG,mytype)
+          MoyStress = real(MP,mytype)
+       end if
+     end if
+     if(algo_param%Diffusion) then
+          GradQDMoy = real(MED,mytype)
+          FluxDMoy = real(MSD,mytype)
+     end if 
+  end if
+
+
+  !! On envoie sur tous les processeurs les valeurs moyennes
+  call MPI_Bcast(MoyDef,algo_param%nTensDef,real_type,0,MPI_COMM_WORLD,ierror)
+  call MPI_Bcast(MoyStress,algo_param%nTensDef,real_type,0,MPI_COMM_WORLD,ierror)
+  do ivar=1,algo_param%nVarD
+    call MPI_Bcast(gradQDMoy(:,ivar),3,real_type,0,MPI_COMM_WORLD,ierror)
+    call MPI_Bcast(FluxDMoy(:,ivar),3,real_type,0,MPI_COMM_WORLD,ierror)
+  end do
+
+end subroutine sortie_std
+
+subroutine init_matcomp_sortie
+end subroutine init_matcomp_sortie
+
+subroutine init_buffers(coeff_buffer_zstd)
+real(mytype) :: coeff_buffer_zstd
+end subroutine init_buffers
+
+subroutine desallocation_sortie_std 
+end subroutine desallocation_sortie_std 
+
+
+!==============================================================================
+!       SUBROUTINE SORTIE_STD_MACRO
+!------------------------------------------------------------------------------
+!> Ecriture des donnees sur le fichier de sortie standard.
+!! Fonction  appelee a chaque fin de pas de calcul. \n
+!! Permet de calculer et d'ecrire des grandeurs d'interet dans le fichier de sortie standard
+!! Uniquement pour la cellule complete :
+!!               -> moyenne et écart type de la déformation sur toute la cellule
+!!               -> moyenne et écart type de la contrainte sur toute la cellule
+!!
+!!
+!! \param[in]      t: (reel) temps du chargement
+!! \param[in]      ind_tps: (entier) pas de temps courant
+!! \param[in]      nb_it: (entier) nombre d'iterations
+!! \param[in]      Sig: (tableau de reels (nx,ny,nz,6)) champs de contrainte de Cauchy
+!! \param[in]      PK1: (tableau de reels (nx,ny,nz,9)) champs de contrainte de Piola-
+!!                          Kirchhoff
+!! \param[in]      Def: (tableau de reels (nx,ny,nz,6 ou 9)) champs de deformation en HPP
+!!                          ou du gradient du deplacement en grandes transformations
+!! \param[in]      fic_vtk: (chaine de caracteres) racine des noms de fichier dans lequel 
+!!                           on ecrit les grandeurs d'interets
+!! \param[in]     Fstd : (entier) unite logique des fichiers
+!!
+!!
+!! \param[out]      MoyStress, MoyDef: tableaux de reels (dimensions 6 ou 9), contraintes 
+!!                       et deformations moyennes utilisees comme valeurs initiales
+!!                       pour le pas de chargement suivant. En HPP, cela correspond a la
+!!                       contrainte de Cauchy et a la deformation. 
+!!                       En grandes transformations, cela correspond a la contrainte
+!!                       de Piola-Kirchhoff et au gradient du deplacement
+!!
+!!
+!!
+!!
+!!REMARQUE \n
+!!       Le rang du processus est defini par la variable 'nrank'
+!!
+!!                                                                     IMPORTANT \n
+!! Lors de l'appel de "write" il faut utiliser l'unite logique "Fstd". \n
+!! DANS LE CAS CONTRAIRE: on ne peut pas garantir que les donnees soient ecrites
+!!                       dans le bon fichier.\n
+!!
+!!!
+!! Les differents tableaux (pinceaux en X) sont definies de "xstart(i)" a "xend(i)" 
+!! ou i correspond a l'axe: 
+!! - 'x' si i=1
+!! - 'y' si i=2
+!! - 'z' si i=3
+!! Les valeurs de xstart et xend varient pour chaque processus.
+!!Donc pour atteindre une position specifique (par exemple Sig(2,5,1,:) )
+!! on prendra soin de verifier que ces coordonnees existent pour le processus
+!! (un processus est defini par son rang).\n
+!!
+!!------------------------------------------------------------------------------
+!!                                                                     IMPORTANT\n
+!!Les contraintes et deformations moyennes doivent etres calculees puisqu'elles
+!!sont utilisees comme valeurs initiales certains chargement
+!!(le premier chargement d'un ensemble defini dans le fichier xml de chargement).
+!!
+!!
+!!------------------------------------------------------------------------------
+!!                                                                     IMPORTANT\n
+!!Pour des raisons de precision sur les moyennes et les ecarts types, on utilise
+!!des variables temporaires de type double precision.
+!!
+!! Si tel n'est pas le cas, en simple precision, on obtient une valeur de
+!! E[X^2]-E[X]^2 negative et donc une valeur d'ecart type de "NaN"
+!!
+!==============================================================================
+subroutine sortie_std_macro(t,ind_tps,nb_it,&
+     Sig,Def,FluxD,GradQD,fic_vtk,Fstd,MoyStress,MoyDef,FluxDMoy,gradQDMoy,PK1)
+
+  !
+  !On considere ici que les phases sont definies par les numeros de materiau
+  !
+  use MPI
+  use decomp_2d
+  use material_mod
+  use loading_mod
+  use param_algo_mod
+  use error_mod
+  use field_mod
+  use green_mod
+
+  implicit none
+  !------------------------------------------------------------------------------
+  !variables non modifiables  
+  real(mytype), intent(in)   ::t
+  real(mytype), dimension(xsize(1)*xsize(2)*xsize(3),6), intent(in) :: Sig
+  real(mytype), dimension(xsize(1)*xsize(2)*xsize(3),3,algo_param%nVarD), intent(in) :: FluxD,gradQD
+  !! On utilise la fonction merge(0,1,logical) pour obtenir
+  !! 0 si logical == .TRUE. et 1 si logical == .FALSE.
+  !! Cela evite d'allouer de la memoire pour des variables qui ne sont pas utilisees (astuce utilisee egalement dans la suite)
+  real(mytype),dimension(merge(0,1,algo_param%HPP)*xsize(1)*xsize(2)&
+       *xsize(3),merge(0,1,algo_param%HPP)*9),intent(in)                              :: PK1
+  real(mytype), dimension(xsize(1)*xsize(2)*xsize(3),algo_param%nTensDef), intent(in) :: Def
+  integer,       intent(in)  :: ind_tps
+  real(mytype),dimension(algo_param%nTensDef),intent(out)  :: MoyDef,MoyStress
+  real(mytype),dimension(3,algo_param%nVarD),intent(out)   :: FluxDMoy,gradQDMoy
+
+  integer, intent(in)        :: nb_it,Fstd
+  integer                    :: ierror
+  integer(kind=8)            :: cell_size
+  !format d'affichage des reels
+  character(len=5),parameter :: FMT_real="E15.8"
+
+  character(len=*),intent(in) :: fic_vtk
+  character(len=200) :: fic_std,fic_local
+
+  !------------------------------------------------------------------------------
+  !variables modifiables
+  ! moyennes, moyennes par phase et ecart types
+
+  !moyenne et ecart type des contraintes et deformation sur la cellule
+  double precision,dimension(6) ::  MS, ME,EctS, EctE
+  double precision,dimension(3,algo_param%nVarD) ::  MSD, MED,EctSD, EctED
+  double precision,dimension(merge(0,1,algo_param%HPP)*9) ::  MP, EctP,MG,EctG
+
+  !variable de stockage reelle (temporaire)
+  !real(mytype), dimension(xsize(1)*xsize(2)*xsize(3),6)     :: def_tmp
+  real(mytype), dimension(6,6)     :: def_tmp
+  double precision,dimension(3,algo_param%nVarD)            :: fluxd_tmp,gradqd_tmp
+
+  double precision,dimension(algo_param%nTensDef)           :: r_tmp
+  double precision,dimension(3,algo_param%nVarD)            :: rD_tmp
+  double precision,dimension(merge(0,1,algo_param%HPP)*9)   :: gradu_tmp, PK1_tmp
+
+  ! indice de la variable de diffusion
+  integer                       :: ivar
+  ! indice et numero de materiau
+  integer                       :: i,numM
+  ! indices et numero de zone
+  integer(kind=8)               :: j,numZ,nbZone,k,l,p, indZone_min, indZone_max
+  ! nombre d'elements (zone ,materiau, temporaire)
+  integer(kind=8)               :: nZ, nM, n_tmp
+  ! tolerance sur l'ecart type
+  double precision,parameter                 :: eps=1e-10_8
+
+  ! variables pour la definition des formats
+  integer(kind=8)               :: p1,p2,p3,p4
+  character(len=8)              :: p1_char,p2_char,p3_char,p4_char 
+					! nombre de colonnes dans les fichiers => utile pour la construction des "format" d'ecriture
+					! mecanique : p1 et p2 (valeurs moyennes et ecarts types)
+					! diffusion : p3 et p4 (valeurs moyennes et ecarts types)   
+                                        ! astuce : on ne rajoute pas d'espace (1X) pour l'ecriture des ecarts-types (positifs)  
+  character(len=200)            :: format
+
+  !nombre de voxels dans chaque pinceau
+  cell_size=int(xsize(1),kind=8)*int(ysize(2),kind=8)*int(zsize(3),kind=8)
+
+  !! identification des nombres de colonnes a ecrire
+     if (algo_param%HPP) then
+       p1 = 13
+       p2 = 12
+     else
+       p1 = 31
+       p2 = 30
+     end if
+     p = 6*algo_param%nVarD
+     p3 = p+1
+     p4 = p
+     write(p1_char,"(I4)") p1 
+     write(p2_char,"(I4)") p2 
+     write(p3_char,"(I4)") p3 
+     write(p4_char,"(I4)") p4 
+
+
+  !! Ouverture de fichier std
+  fic_std = trim(fic_vtk)//".std"
+  if(nrank==0)then
+     !fichier .std
+     open(unit=Fstd, file=fic_std,form="formatted", status="old",position="append", action="write")
+  end if
+
+  !! INITIALISATION a 0
+  !! Moyennes et ecart-types des contraintes (S) et des deformations (E) 
+  !! dans tout le domaine
+
+  if (algo_param%Mechanics) then !-------MECANIQUE
+    MS=0 	!Moyennes
+    ME=0
+    EctS=0	!Ecart-types
+    EctE=0
+
+    if(.NOT.algo_param%HPP) then !contraintes PK (P) et gradient de U (G) en Grandes Transfo.
+       MP=0
+       MG=0
+       EctP=0
+       EctG=0
+    end if
+  end if
+  if (algo_param%Diffusion) then !-------DIFFUSION
+    MSD=0
+    MED=0
+    EctSD=0
+    EctED=0
+  end if
+
+  !! CALCUL DES MOYENNES 
+  def_tmp = 0.
+  
+  if (algo_param%Mechanics) then !-------MECANIQUE
+
+     if(algo_param%HPP) then
+
+        call field_Mean(Sig,grid%ntot,6,MS,EctS) ! Moyenne et Variance  contrainte de Cauchy
+        call field_Mean(Def,grid%ntot,6,ME,EctE) ! Moyenne déformation 
+
+     else !contraintes PK (P) et gradient de U (G) en Grandes Transfo.
+
+!!$        !! On calcule le tenseur de Green-Lagrange
+!!$        def_tmp(:,1) = Def(:,1) + 0.5_8 * (Def(:,1)**2 &
+!!$                       + Def(:,7)**2 + Def(:,8)**2)
+!!$        def_tmp(:,2) = Def(:,2) + 0.5_8 * (Def(:,2)**2 &
+!!$                       + Def(:,4)**2 + Def(:,9)**2)
+!!$        def_tmp(:,3) = Def(:,3) + 0.5_8 * (Def(:,3)**2 &
+!!$                       + Def(:,5)**2 + Def(:,6)**2)
+!!$        def_tmp(:,4) = 0.5_8 * (Def(:,4) + Def(:,7) + &
+!!$                       Def(:,1)*Def(:,4)+ Def(:,7)*Def(:,2) &
+!!$                       + Def(:,8)*Def(:,9))
+!!$        def_tmp(:,5) = 0.5_8 * (Def(:,5) + Def(:,8) + &
+!!$                       Def(:,1)*Def(:,5) + Def(:,7)*Def(:,6) + &
+!!$                       Def(:,8)*Def(:,3))
+!!$        def_tmp(:,6) = 0.5_8 * (Def(:,6) + Def(:,9) + &
+!!$                       Def(:,4)*Def(:,5) + Def(:,2)*Def(:,6) + &
+!!$                       Def(:,9)*Def(:,3))
+
+
+        call field_Mean(Sig,grid%ntot,6,MS,EctS)      ! Moyenne et Variance contrainte de Cauchy
+        !call field_Mean(def_tmp,grid%ntot,6,ME,EctE)  ! Moyenne et Variance tenseur de Green Lagrange
+        call field_Mean(Def,grid%ntot,6,MG,EctG)      ! Moyenne et Variance du gradient de U
+        call field_Mean(PK1,grid%ntot,6,MP,EctP)      ! Moyenne et Variance contrainte Piola Kirchoff 1
+     end if
+  end if                  !---------FIN MECANIQUE
+  
+  if (algo_param%Diffusion) then !---------DIFFUSION
+
+     call field_Mean(FluxD,grid%ntot,3*algo_param%nVarD,MSD,EctS) ! Moyenne et Variance  contrainte de Cauchy
+     call field_Mean(GradQD,grid%ntot,3*algo_param%nVarD,MED,EctE) ! Moyenne déformation 
+
+  end if                  !---------FIN DIFFUSION 
+
+  !! ECRITURE Fichier .std
+  if (nrank==0) then
+     open(unit=Fstd, file=fic_std,form="formatted", status="old",position="append", action="write")
+     if (algo_param%Mechanics .and. .not.algo_param%Diffusion) then !-Mecanique pure
+        format="("//trim(p1_char)//"(E15.8,1X),"//trim(p2_char)//"E15.8,I4)"
+        if(algo_param%HPP) then
+           write(Fstd,fmt=trim(format)) t,MS,ME,EctS,EctE,nb_it
+        else 
+           write(Fstd,fmt=trim(format)) t,MS,MP,ME,MG,EctS,EctP,EctE,EctG,nb_it
+        end if
+     end if
+     if (algo_param%Diffusion .and. .not.algo_param%Mechanics) then  !-Diffusion pure
+        format="("//trim(p3_char)//"(E15.8,1X),"//trim(p4_char)//"E15.8,I4)"
+        write(Fstd,fmt=trim(format)) t,MSD(:,1),MED(:,1),EctSD(:,1),EctED(:,1),nb_it
+     end if
+     flush(Fstd)
+     close(Fstd)
+  end if
+
+  !! on affecte les grandeurs moyennes de sortie de la procédure
+  if(algo_param%Mechanics) then
+       if(algo_param%HPP) then
+          MoyDef = real(ME,mytype)
+          MoyStress = real(MS,mytype)
+       else
+          MoyDef = real(MG,mytype)
+          MoyStress = real(MP,mytype)
+       end if
+     end if
+     if(algo_param%Diffusion) then
+          GradQDMoy = real(MED,mytype)
+          FluxDMoy = real(MSD,mytype)
+     end if 
+
+end subroutine sortie_std_macro
+
+
+!==============================================================================
+!       SUBROUTINE VARIANCE_TO_STD
+!------------------------------------------------------------------------------
+!> Evalue l'ecart-type a partir de la variance, 
+!!           en annulant les éventuels arrondis négatifs
+!!
+!!
+!! \param[in]      EctS_z
+!!                 MS_z
+!!                 eps
+!!                 ncomp
+!!                 
+!! \param[out]     EctS_z 
+!==============================================================================
+subroutine variance_to_std(MS_z,EctS_z,eps,ncomp)
+
+  use decomp_2d
+
+  implicit none
+
+  integer,intent(in)                         :: ncomp
+  real(mytype),dimension(ncomp),intent(in)   :: MS_Z
+  real(mytype),dimension(ncomp),intent(inout):: EctS_z
+  real(mytype),intent(in)                    :: eps
+  real(mytype),dimension(ncomp)              :: r_tmp
+
+  where(MS_z .ne. 0) 
+     r_tmp(:)=abs(EctS_z/MS_z)
+  elsewhere
+     r_tmp(:)=eps+1.
+  end where
+  where(EctS_z<0 .and. r_tmp(:)<eps)
+     EctS_z=0
+  end where
+  ! ecart type
+  EctS_z=sqrt(EctS_z)
+
+end subroutine variance_to_std
+
+
+!==============================================================================
+!       SUBROUTINE DETF
+!------------------------------------------------------------------------------
+!> Calcul du determinant de (1 + G) 
+!!      ou G est une matrice 3x3 donnee sous forme de vecteur
+!! 
+!! \param[in]     G sous forme de vecteur selon l'ordre 
+!!                11 22 33 12 13 23 21 31 32
+!!
+!! \param[out]    res, determinant de (1 + G) 
+!!
+!==============================================================================
+subroutine detF(G,res)
+
+  use decomp_2d
+
+  implicit none
+  real(mytype),dimension(9), intent(in)  :: G
+  real(mytype), intent(out)              :: res  
+
+
+! copie de det.eso de cast3m
+!        DET= A(1,1)*(A(2,2)*A(3,3)-A(3,2)*A(2,3))
+!           +A(2,1)*(A(3,2)*A(1,3)-A(1,2)*A(3,3)) &
+!           +A(3,1)*(A(1,2)*A(2,3)-A(2,2)*A(1,3)) &
+
+  !calcul
+  res = (G(1)+1._mytype)*((G(2)+1._mytype)*(G(3)+1._mytype)-G(9)*G(6)) &
+      + G(7)*(G(9)*G(5)-G(4)*(G(3)+1._mytype)) &
+      + G(8)*(G(4)*G(6)-(G(2)+1._mytype)*G(5))
+
+
+
+end subroutine detF
+
+
+
+end module sortie_std_mod
+

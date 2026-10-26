@@ -1,0 +1,281 @@
+#!/bin/bash
+if [ ! -d "libAmitex" -a ! -d "lib_extern" ]; then
+   echo "ERROR : install must be launched in its main directory 'amitex_fftp'"
+   exit 0
+fi
+
+#------- For MAC USERS : uncomment #SED=gsed
+SED=sed
+#SED=gsed     
+
+
+#=========================================== definition de variables (repertoires, fichiers...)
+DIR=$(pwd)
+DECOMP2D="$DIR/lib_extern/2decomp_fft-1.5.847"
+DECOMP2D_NEW="$DIR/lib_extern/2decomp_fft"
+DECOMP2D_OPENMP="$DIR/lib_extern/2decomp_fft-1.5.847-openmp"
+FOX="$DIR/lib_extern/FoX-4.1.2_modif2018"
+AMITEX="$DIR/libAmitex"
+EX="$DIR/cas_tests"
+EX_PF="$DIR/cas_tests_PF"
+EX_MM="$DIR/cas_tests_mM"
+LOG="$DIR/install.info"
+DOXYGEN="$DIR/doc/Doxygen"
+VALID="$DIR/validation"
+DSH="$DIR/post/deformed_shape"
+EMPTY="TO_BE_FILLED"
+
+export AMITEX_PATH="$PWD"
+
+if test -f $LOG
+then
+
+
+# Amitex_fftp
+
+$SED -i "/export AMITEX_PATH/c\export AMITEX_PATH=$EMPTY" env_amitex.sh
+
+cd "$AMITEX/src"
+make clean
+$SED -i "/^  version\=/c\  version=\"x.y.z\" ! do not modify this line" amitex_fftp.f90
+
+# Makefile materiaux / materiauxK
+cd "$AMITEX/src/materiaux"
+rm  Makefile
+cd "$AMITEX/src/materiauxK"
+rm  Makefile
+
+# Amitex_fftp user_Kochman puis user_Miehe, user_CahnHilliard
+#cd "$AMITEX/src/user_Kochman"
+#make clean
+#$SED -i "/^lDecomp\=/c\lDecomp=$EMPTY" Makefile
+#$SED -i "/^lFox\=/c\lFox=$EMPTY" Makefile
+#$SED -i "/^lAmitex\=/c\lAmitex=$EMPTY" Makefile
+
+#cd "$AMITEX/src/user_Miehe"
+#make clean
+#rm Makefile
+#rm README
+
+#cd "$AMITEX/src/user_CahnHilliard"
+#make clean
+#rm Makefile
+#rm README
+
+# Amitex_fftp user_ddd_mm
+#cd "$AMITEX/src/user_ddd_mm"
+#make clean
+#$SED -i "/^lDecomp\=/c\lDecomp=$EMPTY" Makefile
+#$SED -i "/^lFox\=/c\lFox=$EMPTY" Makefile
+#$SED -i "/^lAmitex\=/c\lAmitex=$EMPTY" Makefile
+#rm README
+
+# Amitex_fftp user_Kochman2
+cd "$AMITEX/src/user_Kochman2"
+make clean
+
+# Amitex_fftp user_Miehe2
+cd "$AMITEX/src/user_Miehe2"
+make clean
+rm Makefile
+rm README
+
+# Amitex_fftp user_biscale2
+cd "$AMITEX/src/user_biscale2"
+make clean
+rm Makefile
+rm README
+
+# Amitex_fftp user_ddd_mm2
+cd "$AMITEX/src/user_ddd_mm2"
+make clean
+rm README
+
+# Amitex_fftp user_gurtinSSnloc3
+cd "$AMITEX/src/user_gurtinSSnloc3"
+make clean
+
+# Amitex_fftp user_Miehe3
+cd "$AMITEX/src/user_Miehe3"
+make clean
+rm README
+
+# Amitex_fftp user_Kochman3
+cd "$AMITEX/src/user_Kochman3"
+make clean
+rm README
+rm Makefile
+
+# Amitex_fftp user_CahnHilliard3
+cd "$AMITEX/src/user_CahnHilliard3"
+make clean
+rm README
+rm Makefile
+
+# Amitex_fftp user_graingrowth3
+cd "$AMITEX/src/user_graingrowth3"
+make clean
+rm README
+rm Makefile
+
+# tools/optim_2decomp
+cd "$AMITEX/tools/optim_2decomp"
+make clean
+
+# Configuration des fichiers materiaux : cas_tests/materiaux/mat_*.xml
+libUmatAmitex="$AMITEX/src/materiaux/libUmatAmitex.so"
+libUmatAmitexK="$AMITEX/src/materiauxK/libUmatAmitexK.so"
+libUmatMazars="$DIR/cas_tests/comportements/mazars/src/libUmatBehaviour.so"
+libUmatPolyx="$DIR/cas_tests/comportements/polyxCC/comportement_umat/libUmatAmitex.so"
+libUmatPolyxGD="$DIR/cas_tests/comportements/polyxGD/comportement_umat/libUmatAmitex.so"
+libUmatGurtinHPP="$DIR/cas_tests/comportements/gurtin_hpp_glissement_simple/src/libUmatBehaviour.so"
+cd "$EX/mate"
+#$SED -i "s#$libUmatAmitex#lib_to_be_filled#g" mat_beton.xml
+#$SED -i "s#$libUmatAmitex#lib_to_be_filled#g" mat_fissure.xml
+#$SED -i "s#$libUmatAmitex#lib_to_be_filled#g" mat_incl_pore1.xml
+#$SED -i "s#$libUmatAmitex#lib_to_be_filled#g" mat_incl_pore2.xml
+#$SED -i "s#$libUmatAmitex#lib_to_be_filled#g" mat_lin_2.xml
+#$SED -i "s#$libUmatAmitex#lib_to_be_filled#g" mat_linaniso.xml
+#$SED -i "s#$libUmatAmitex#lib_to_be_filled#g" mat_lin_GD.xml
+#$SED -i "s#$libUmatAmitex#lib_to_be_filled#g" mat_lin.xml
+#$SED -i "s#$libUmatAmitex#lib_to_be_filled#g" mat_continuous_R10.xml
+#$SED -i "s#$libUmatAmitex#lib_to_be_filled#g" mat_polyx_laminate_elasiso.xml
+#$SED -i "s#$libUmatAmitex#lib_to_be_filled#g" mat_polyx_reuss_elasiso.xml
+#$SED -i "s#$libUmatAmitex#lib_to_be_filled#g" mat_polyx_elasiso.xml
+$SED -i "s#$libUmatMazars#lib_to_be_filled#g" mat_mazars.xml
+$SED -i "s#$libUmatPolyx#lib_to_be_filled#g"  mat_polyx_bin.xml
+$SED -i "s#$libUmatPolyx#lib_to_be_filled#g"  mat_polyx.xml
+$SED -i "s#$libUmatPolyxGD#lib_to_be_filled#g" mat_polyx_GD.xml
+#$SED -i "s#$libUmatAmitex#lib_to_be_filled#g" mat_thermo.xml
+#$SED -i "s#$libUmatAmitexK#lib_to_be_filled#g" mat_lin_diffusion.xml
+$SED -i "s#$libUmatGurtinHPP#lib_to_be_filled#g" mat_gurtin_user_hpp.xml
+#$SED -i "s#$libUmatAmitex#lib_to_be_filled#g" mat_paramext_bicouche.xml
+#$SED -i "s#$libUmatAmitex#lib_to_be_filled#g" mat_thermo_bicouche.xml
+
+# exemple comportement/polyxCC 
+cd "$EX/comportements/polyxCC/comportement_umat"
+make clean
+rm Makefile
+
+
+# exemple comportement/polyxGD 
+cd "$EX/comportements/polyxGD/comportement_umat"
+make clean
+rm Makefile
+
+
+# exemple comportement/mazars 
+cd "$EX/comportements/mazars"
+rm -rf src
+rm -rf castem
+rm -rf include
+
+# exemple comportement gurtin
+cd "$EX/comportements/gurtin_hpp_glissement_simple/"
+rm -rf src
+rm -rf castem
+rm -rf include
+
+# exemple lib_user_functions
+cd "$EX/lib_user_functions/"
+make clean
+
+# tests elementaires
+cd "$DIR/tests_elem/test_conventionsFFT" 
+make clean
+cd "$DIR/tests_elem/test_criteres" 
+make clean
+cd "$DIR/tests_elem/test_umatVoxComp" 
+make clean
+cd "$DIR/tests_elem/test_io_vtk"
+make clean
+cd "$DIR/tests_elem/test_field_filterF"
+make clean
+
+
+# Doxygen
+cd $DOXYGEN
+rm -rf html
+rm -rf latex
+
+# Validation
+cd $VALID
+make clean 
+$SED -i "/:\$LD_LIBRARY_PATH/c\LD_LIBRARY_PATH=$EMPTY:\$LD_LIBRARY_PATH"    script_tests.sh
+$SED -i "/^FC\=/c\FC=$EMPTY"  script_tests_maldives
+$SED -i "/  cd/c\  cd $EMPTY" script_tests_maldives
+$SED -i "/^FC\=/c\FC=$EMPTY"  script_tests_marquises
+$SED -i "/^FC\=/c\FC=$EMPTY"  script_tests_maldives_openmp
+$SED -i "/  cd/c\  cd $EMPTY" script_tests_maldives_openmp
+$SED -i "/  cd/c\  cd $EMPTY" script_tests_poincare
+$SED -i "/^FC\=/c\FC=$EMPTY"  script_tests_poincare
+$SED -i "/  cd/c\  cd $EMPTY" script_tests_cobalt
+$SED -i "/  cd/c\  cd $EMPTY" script_tests_irene
+$SED -i "/  cd/c\  cd $EMPTY" update_results.sh 
+./clean_results.sh
+$SED -i "/PWD0=/c\PWD0=TO_BE_FILLED" clean_results.sh 
+
+# PhaseField
+cd "$EX_PF"
+./clean_results_PF.sh
+$SED -i "/PWD0=/c\PWD0=TO_BE_FILLED" clean_results_PF.sh 
+$SED -i "/^FC\=/c\FC=$EMPTY"  script_tests_marquises2
+$SED -i "/^FC\=/c\FC=$EMPTY"  script_tests_marquises3
+$SED -i "/^FC\=/c\FC=$EMPTY"  script_tests_marquises3b
+
+cd behavior
+make clean
+rm Makefile
+
+# mM coupling
+cd "$EX_MM"
+./clean_all.sh
+
+# Visualisation en grandes transformations
+cd $DSH
+make clean
+
+cd $DIR/py4amitex_tests
+./clean.sh
+
+# Fox et 2decomp (sauf si argument light)
+if [[ $1 != light ]]
+then
+  # FoX
+  cd $FOX
+  #make clean
+  rm config.log config.status FoX-config arch.make > /dev/null 2>&1
+  rm -rf build > /dev/null 2>&1
+
+
+  # 2decomp / 2decomp-open : make clean (si Makefile.inc existe)
+  #                          + suppression de Makefile.inc dans 2decomp/src
+
+  cd $DECOMP2D
+  if [ -f "$DECOMP2D/src/Makefile.inc" ];then
+  make clean
+  rm src/Makefile.inc
+  fi
+
+  cd $DECOMP2D_OPENMP
+  if [ -f "$DECOMP2D_OPENMP/src/Makefile.inc" ];then
+  make clean
+  rm src/Makefile.inc
+  fi
+
+  cd $DECOMP2D_NEW
+  rm -rf build  > /dev/null 2>&1
+  
+fi
+cd $DIR
+
+rm $AMITEX/bin/amitex_fftp-config
+
+# Log de l'installation
+rm $LOG
+else
+   echo "Rien a faire pour clean"
+fi
+
+#
+rm -rf "$DIR/../amitex_2decomp_fft/build"  > /dev/null 2>&1

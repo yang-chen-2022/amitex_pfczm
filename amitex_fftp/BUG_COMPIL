@@ -1,0 +1,13 @@
+LIST OF PROBLEMS WHEN COMPILING
+================================
+
+2decomp(new) :
+---------------
+01/2024
+
+PB compil : gcc version 8.1.0 (cluster marquises)
+PB compil : gcc version 9.3.0 (Ubuntu 9.3.0-17ubuntu1~20.04)
+OK compil : gcc version 11.3.0 (Ubuntu 11.3.0-1ubuntu1~22.04)
+OK compil : intel oneapi 20211.1 
+
+PB cmake : pour utiliser cmake de Ubuntu 20.04 (version 3.16.3), j’ai dû modifier cmake_minimum_required(VERSION 3.16.3)   dans le CMakeLists.txt

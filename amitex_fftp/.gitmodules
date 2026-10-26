@@ -1,0 +1,3 @@
+[submodule "lib_extern/2decomp_fft"]
+	path = lib_extern/2decomp_fft
+	url = https://github.com/2decomp-fft/2decomp-fft.git

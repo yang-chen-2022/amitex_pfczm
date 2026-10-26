@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Materials>
+
+<!-- REFERENCE MATERIAL -->
+<Reference_Material Lambda0="61.1111e3" Mu0="91.6667e3"/>  <!--tobemodified,LBDA0,MU0-->
+
+<!-- MATERIAL 1: PORE - E=0, nu=0.2 -->
+<Material numM="1" Lib="behaviours/libUmatAmitex.so" Law="elasisoPF" >
+    <Coeff Index="1" Type="Constant" Value="127e-1"/> <!--lambda [MPa]-->
+    <Coeff Index="2" Type="Constant" Value="191e-1"/>  <!--mu [MPa]-->
+    <Coeff Index="3" Type="Constant" Value="0"/>      <!--viscous parameter [MPa*s]-->
+    <Coeff Index="4" Type="Constant" Value="0.002"/>   <!--characteristic length, lc [mm]-->
+    <Coeff Index="5" Type="Constant" Value="0.04"/> <!--fracture energy, gc [N/mm]-->
+    <!--define the initial values of internal variables-->
+    <IntVar Index="1" Type="Constant" Value="0."/> <!--damage variable-->
+    <IntVar Index="2" Type="Constant" Value="0."/> <!--strain energy-->
+    <!--coefficients for numerical integration-->
+    <Coeff_composite Index="1" Type="Constant" Value="1" /> <!--will be calculated in amitex program-->
+    <Coeff_composite Index="2" Type="Constant" Value="1" /> <!--will be calculated in amitex program-->
+</Material>
+
+<!-- MATERIAL 2: MATRIX -->
+<Material numM="2" Lib="behaviours/libUmatAmitex.so" Law="elasisoPF" >
+    <Coeff Index="1" Type="Constant" Value="122.2222e3"/> <!--lambda [MPa],tobemodified,LBDAmat-->
+    <Coeff Index="2" Type="Constant" Value="183.3333e3"/>  <!--mu [MPa],tobemodified,MUmat -->
+    <Coeff Index="3" Type="Constant" Value="0"/>      <!--viscous parameter [MPa*s]-->
+    <Coeff Index="4" Type="Constant" Value="0.002"/>   <!--characteristic length, lc [mm]-->
+    <Coeff Index="5" Type="Constant" Value="0.01"/> <!--fracture energy, gc [N/mm]-->
+    <!--define the initial values of internal variables-->
+    <IntVar Index="1" Type="Constant" Value="0."/> <!--damage variable-->
+    <IntVar Index="2" Type="Constant" Value="0."/> <!--strain energy-->
+    <!--coefficients for numerical integration-->
+    <Coeff_composite Index="1" Type="Constant" Value="1" /> <!--will be calculated in amitex program-->
+    <Coeff_composite Index="2" Type="Constant" Value="1" /> <!--will be calculated in amitex program-->
+</Material>
+
+<!-- MATERIAL 3: FIBRE - E=365GPa, nu=0.2, [Zayachuk,2019] -->
+<Material numM="3" Lib="behaviours/libUmatAmitex.so" Law="elasisoPF" >
+    <Coeff Index="1" Type="Constant" Value="101.3889e3"/> <!--lambda [MPa]-->
+    <Coeff Index="2" Type="Constant" Value="152.0833e3"/>  <!--mu [MPa]-->
+    <Coeff Index="3" Type="Constant" Value="0"/>      <!--viscous parameter [MPa*s]-->
+    <Coeff Index="4" Type="Constant" Value="0.002"/>   <!--characteristic length, lc [mm]-->
+    <Coeff Index="5" Type="Constant" Value="0.5"/> <!--fracture energy, gc [N/mm]-->
+    <!--define the initial values of internal variables-->
+    <IntVar Index="1" Type="Constant" Value="0."/> <!--damage variable-->
+    <IntVar Index="2" Type="Constant" Value="0."/> <!--strain energy-->
+    <!--coefficients for numerical integration-->
+    <Coeff_composite Index="1" Type="Constant" Value="1" /> <!--will be calculated in amitex program-->
+    <Coeff_composite Index="2" Type="Constant" Value="1" /> <!--will be calculated in amitex program-->
+</Material>
+
+<!-- MATERIAL 4: INTERFACE -->
+<Material numM="4" Lib="behaviours/libUmatAmitex.so" Law="CZM_AlfanoSacco_explicit" >
+    <Coeff Index="1" Type="Constant" Value="100"/>  <!--tau0 [N/mm2], tobemodified,IsigNormal-->
+    <Coeff Index="2" Type="Constant" Value="0.002"/>  <!--GcI [N/mm]-->
+    <Coeff Index="3" Type="Constant" Value="100"/>  <!--tau0 [N/mm2], tobemodified,IsigTangential-->
+    <Coeff Index="4" Type="Constant" Value="0.002"/>  <!--GcII [N/mm]-->
+    <Coeff Index="5" Type="Constant" Value="0.999"/>  <!--eta []-->
+    <Coeff Index="6" Type="Constant" Value="0.25"/>  <!--mu []-->
+    <Coeff Index="7" Type="Constant" Value="0"/>  <!--interphsae thickness [mm]. will recalculated in amitex-->
+    <Coeff Index="8" Type="Constant" Value="0"/>  <!--e1_1, will be allocated using the files in rep...-->
+    <Coeff Index="9" Type="Constant" Value="0"/>  <!--e1_2, will be allocated using the files in rep...-->
+    <Coeff Index="10" Type="Constant" Value="0"/>  <!--e1_3, will be allocated using the files in rep...-->
+    <Coeff Index="11" Type="Constant" Value="0"/>  <!--e2_1, will be allocated using the files in rep...-->
+    <Coeff Index="12" Type="Constant" Value="0"/>  <!--e2_2, will be allocated using the files in rep...-->
+    <Coeff Index="13" Type="Constant" Value="0"/>  <!--e2_3, will be allocated using the files in rep...-->
+    <!--define the initial values of internal variables-->
+    <IntVar Index="1" Type="Constant" Value="0."/> <!--damage variable-->
+    <IntVar Index="2" Type="Constant" Value="0."/> <!--residual inelastic shear displ.-->
+    <IntVar Index="3" Type="Constant" Value="0."/> <!--dir. of shear at each step-->
+    <IntVar Index="4" Type="Constant" Value="0."/> <!--dir. of shear at each step-->
+    <IntVar Index="5" Type="Constant" Value="0."/> <!--damage variable at t-1-->
+    <IntVar Index="6" Type="Constant" Value="0."/> <!--damage variable of the bulk-->
+    <Coeff_composite Index="1" Type="Constant" Value="1" /> <!--will be calculated in amitex program-->
+    <Coeff_composite Index="2" Type="Constant" Value="1" /> <!--will be calculated in amitex program-->
+</Material>
+
+<!-- MATERIAUX COMPOSITES -->
+<Material_composite>
+    <Coeff_composite directory="microstructures/periodic2D/iUC1/vp0.1/h0.001/"/> <!--tobemodified,compvxcoef-->
+</Material_composite>
+
+<!-- Specify which mat is the INTERPHASE -->
+<Interphase>
+     <Interphase_material  numM="4" Nzones="1"/> 
+</Interphase>
+
+</Materials>
+

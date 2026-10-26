@@ -1,0 +1,61 @@
+# Ignorer les objets et les archives
+*.[oa]
+
+# Ignorer les objets et les archives
+*.mod
+
+
+#Ignorer les librariries dynamiques
+*.so
+
+# Ignorer les resultats temporaires
+*.res
+
+# Ignorer les fichiers de backup
+*~
+*#
+
+# Ignorer les fichiers core
+core.*
+
+# Ignorer les sorties graphiques 
+*.svg
+
+# Ignorer les fichiers .trace de CAST3M
+*.trace 
+*.ps
+
+# Ignorer les programmes
+amitex_fftp
+amitexPF_fftp
+amitex_fftp_ddd
+optim_2decomp
+deformedShape
+/validation/compare
+amitex_fftp-config
+
+# Ignorer les dossiers lib et include
+#libAmitex/lib/
+#libAmitex/include/
+
+# Ignorer les librairies externes
+#lib_extern/2decomp_fft-1.5.847/
+#lib_extern/FoX-4.1.2/
+
+# Ignorer les fichiers _build du site web
+doc/amitex_fftp_web/_build/
+
+# Ignorer les fichiers résultats de check_message_errors
+cas_tests/check_error_messages/resultats/
+
+# Ignorer générés
+/libAmitex/src/materiaux*/Makefile
+
+# Ignorer les README générés
+/libAmitex/src/user*/README
+
+/install.info
+
+# Python
+__pycache__
+

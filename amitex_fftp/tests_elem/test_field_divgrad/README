@@ -1,0 +1,8 @@
+VALIDATION DE CALCULS DE DERIVEE 
+- dans l'espace de Fourier
+- dans l'espace reel
+
+DIVERGENCE/GRADIENT : OK (vecteur, tenseur 2 sym, tenseur 2)
+
+ATTENTION : il y a un bug dans 2decomp update_halo si prow ou pcol =1 
+            => necessite une correction effectuee dans field_mod (19/4/2023)

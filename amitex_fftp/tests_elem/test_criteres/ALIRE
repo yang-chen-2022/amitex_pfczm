@@ -1,0 +1,12 @@
+OBJECTIF : 
+	Valider les fonctions eval_criteres de green_mod en utilisant des champs analytiques 
+============================================================================================
+
+UTILISATION :
+        possibilite d'adapter le fichier (Lx,nx, champs et divergence analytique ....)
+	make
+	mpirun -np 4 ./test_eval_criteres
+
+VALIDATION DES CRITERES EN CONTRAINTE (eva_criteres et eval_criteres_GD) : 	OK
+VALIDATION DES CRITERES EN DEFORMATION : 					TODO (moins important)
+

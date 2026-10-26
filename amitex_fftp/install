@@ -1,0 +1,766 @@
+#!/bin/bash
+if [ ! -d "libAmitex" -a ! -d "lib_extern" ]; then
+   echo "ERROR : install must be launched in its main directory 'amitex_fftp'"
+   exit 0
+fi
+#######################################################################
+#                                                    USER
+#
+#  NOTE : If COMPILATION succeeds but EXECUTION fails
+#         -> try modifying OPTIMIZATION options (see below)
+#
+#----------------------------------------------------------------------
+
+# Compiler : ifort or gfortran
+FC=ifort
+#FC=ifx # TODO : modification in install (for mfront) and various Makefiles
+FC=gfortran
+#FC=nvfortran
+
+# MPI compiler
+MPIFC=mpif90
+#MPIFC=mpiifort
+#MPIFC=mpiifx
+#MPIFC=mpifort
+
+# 2DECOMP (old = old stable version, new : new dev version)
+DCMP=old
+#DCMP=new
+#DCMP2=true #TEMPORARY : get amitex_2decomp_fft library (for developpers only)
+
+# FFTW libray
+#   fftw3      - FFTW version 3.x
+#   fftw3_f03  - FFTW 3.3-beta1 or later (with Fortran 2003 interface)
+#   generic    - A general FFT algorithm (no 3rd-party library needed)
+#   mkl        - Intel Math Kernel Library
+#   
+#   => prefer fftw3_f03, systematically used during development
+#
+#   for 2decomp 'new' (DCMP=new)use :  fftw3_f03 or generic 
+
+#--------FFTW
+FFT=generic
+FFT=fftw3_f03
+
+# FFTW path :
+#------------
+#   For DCMP=old, Makefile compilation -> FFT_inc and FFT_lib must be given
+#   For DCMP=new, cmake compilation    -> let blank FFTW3_ROOT, cmake should find fftw
+#                                         if not (problem with fftw not found), set FFTW3_ROOT=path_to_fftw
+
+# 
+FFT_inc=/usr/include
+FFT_lib=/usr/lib
+
+#-------- test MKL on marquises (2019) with intel15 : works but a bit less efficient...
+#
+#
+#FFT=mkl
+
+#MKL marquises
+#MKL_path=/usr/local/oneapi/mkl/2021.1.1
+#MKL_lib=/usr/local/oneapi/mkl/2021.1.1/lib/intel64
+#MKL_lib_gf=libmkl_intel_lp64.a # for INTEL
+#MKL_lib_gf=libmkl_gf_lp64.a    # for GNU
+
+# MKL gricad
+#MKL_path=/home/vedrinel-ext/.nix-profile/mkl/2022.0.2
+#MKL_lib=/home/vedrinel-ext/.nix-profile/mkl/2022.0.2/lib/intel64
+#MKL_lib_gf=libmkl_intel_lp64.a # for INTEL
+
+
+
+#------ For MFRONT and possibly non-standard installation
+MFRONT=mfront
+# Mines - CDM (cristal)
+#MFRONT="mfront -I /cm/shared/apps/castem/castem2019/include/c"
+
+#------ For MAC USERS : uncomment #SED=gsed
+SED=sed
+#SED=gsed     
+
+#------ OPTIMIZATION - DO NOT MODIFY 
+#    EXCEPT IF COMPILATION SUCCEEDS AND EXECUTION FAILS
+#    -> TRY REDUCING OPTIMIZATION FOR 2DECOMP 
+OPTIM_2decomp=-O3  #--- 2decomp fails with gcc930 on ubuntu20.04, use -O2
+OPTIM_amitex=-O3   #"-O3 -ffast-math -fno-finite-math-only" for gcc : very small effect
+                   #   Note :-ffast-math 'alone' is dangerous because it disables NaN tests
+ 
+########---- DEVELOPPER ONLY : DO NOT MODIFY THIS SECTION !!!   ----######
+#
+#
+#======= MULTITHREADING PER PENCIL : openmp (with fftw) 
+#
+# => works but without any performance improvement :
+#    -> version np=Nproc with ppn=1 : same performance as the pure MPI version
+#    -> think of a pure pure openmp version for Nproc=1 
+#
+OPENMP=no	#yes or no (no for standard applications)
+# fftw library path (built with openmp and double prec options)
+FFT_PATH_openmp=/home/gelebart/LIBRAIRIES/fftw-3.3.4_build
+
+#======= FASTMATH : option de compilation GNU -ffast-math 
+#                   uniquement pour les comportements "UMAT" 
+#        "no" pour supprimer l'option
+#	 ATTENTION - effet incertain sur le resultat (verifier sans!)
+FASTMATH=yes
+
+#======= LUSTRE OPTIMIZATION WITH T3PIO
+T3PIO=no
+#sur cobalt (T3PIO compiler avec env par defaut)
+T3PIO_path=/ccc/cont002/home/den/gelebart/LIBS/t3pio_default
+
+
+#======== PRECISION (simple, double) - simple precision part of the code is no more maintained
+#                                     => use "double"
+PREC=double
+#PREC=simple   #deprecated
+
+###############################################################################
+#
+#======================================================================
+if [[ $OPENMP = "yes" ]]
+then
+  FFT_PATH=$FFT_PATH_openmp
+# compiler option to link with openmp :
+#        -openmp or -fopenmp with ifort or gfortran 
+  if $FC --version | grep -i "intel" >/dev/null 2>&1
+  then 
+  openmp=-qopenmp
+  elif $FC --version | grep -i "gnu" >/dev/null 2>&1
+  then
+  openmp=-fopenmp
+  fi
+fi
+
+#=========================================== test FC compiler
+# Compilateur
+if $FC --version | grep -i "intel" >/dev/null 2>&1
+then
+  COMPILER="intel"
+  echo COMPILER = "($COMPILER)"
+elif $FC --version | grep -i "gnu" >/dev/null 2>&1
+then
+  COMPILER="gnu"
+  echo COMPILER = "($COMPILER)"
+else
+  echo The compiler FC is neither \"intel\" nor \"gnu\"
+  echo The compiler FC is neither \"intel\" nor \"gnu\" >> $LOG
+  ERR=1
+fi
+
+#=========================================== Set C compiler
+case $(basename $FC) in
+"ifort")
+  CC="icc"
+  MPICC="mpiicc"
+  ;;
+"ifx")
+  CC="icx"
+  MPICC="mpiicx"
+  ;;
+"gfortran")
+  CC="gcc"
+  MPICC="mpicc"
+  ;;
+"nvfortran")
+  CC="nvcc"
+  MPICC="mpicc" # NVCC needs a gcc on linux, so this should be fine
+  ;;
+*)
+  msg="The Fortran compiler '${FC}' is not recognized, will use gcc as C compiler"
+  echo $msg
+  echo $msg >> $LOG
+  CC="gcc"
+  MPICC="mpicc"
+  ;;
+esac
+
+#=========================================== definition of variables (directories, files...)
+# Diretories
+DIR=$(pwd)
+if [[ $OPENMP = "yes" ]]
+then
+decomp2d="lib_extern/2decomp_fft-1.5.847-openmp"
+elif [[ $OPENMP = "no" ]]
+then
+decomp2d="lib_extern/2decomp_fft-1.5.847"
+else
+  echo OPENMP "($OPENMP)" doit avoir pour valeur \"yes\" ou \"no\" >> $LOG
+  ERR=1
+fi
+decomp2d_new="lib_extern/2decomp_fft"
+fox="lib_extern/FoX-4.1.2_modif2018"
+DECOMP2D="$DIR/$decomp2d"
+DECOMP2D_NEW="$DIR/$decomp2d_new"
+FOX="$DIR/$fox"
+AMITEX="$DIR/libAmitex"
+EX="$DIR/cas_tests"
+EX_PF="$DIR/cas_tests_PF"
+RESULTS="$DIR/resultats"
+RESULTS_PF="$DIR/resultats_PF"
+VALID="$DIR/validation"
+DSH="$DIR/post/deformed_shape"
+LOG="$DIR/install.info"
+
+#======================================================================TEMPORARY : get amitex_2decomp_fft library (for developpers only)
+#                                                     
+if [[ $DCMP2 = "true" ]]
+then
+  DECOMP2D_NEW="$DIR/../amitex_2decomp_fft"
+fi
+
+#=========================================== clean
+# Clean
+cd $DIR
+if [[ $1 != light ]]
+then
+  ./clean
+else
+  ./clean light
+fi
+#=========================================== read 'VERSION' and modifies amitex_fftp.f90
+read tmp0 VERSION_amitex < VERSIONS
+echo "VERSION AMITEX : "$VERSION_amitex
+$SED -i "/^  version\=/c\  version=\"$VERSION_amitex\"" $AMITEX/src/amitex_fftp.f90
+
+#=========================================== compiler options
+# Re-define PREC for pre-compiler
+if [[ $PREC = "double" ]]
+then
+  echo "precision: $PREC" >> $LOG
+  PREC="-DDOUBLE_PREC"
+elif [[ $PREC = "simple" ]]
+then
+  echo "precision: $PREC" >> $LOG
+  PREC=""
+else
+  echo PREC "($PREC)" must be \"simple\" or \"double\"
+  echo PREC "($PREC)" must be \"simple\" or \"double\" >> $LOG
+  ERR=1
+fi
+
+# Re-define OPENMP for pre-compiler
+if [[ $OPENMP = "yes" ]]
+then
+  echo "openmp : $OPENMP" >> $LOG
+  OPENMP="-DOPENMP"
+else
+  OPENMP=""
+fi
+
+# LUSTRE optimization with T3PIO
+if [[ $T3PIO = "yes" ]]
+then
+  echo "T3PIO : $T3PIO" >> $LOG
+  T3PIO="-DT3PIO"
+else
+  T3PIO=""
+fi
+
+PIC="-fPIC"
+
+#=========================================== configuration of 2decomp and FoX
+# Configuration of 2decomp
+echo ""
+echo "Configuration of 2decomp"
+if [[ $1 != light ]]
+then
+  if [[ $DCMP = "new" ]]
+  then
+    echo ""
+    echo "Compilation decomp2d"
+    A=$FC && export FC=$MPIFC
+    cd "$DECOMP2D_NEW"
+    if [[ $FFT = "generic" ]]
+    then
+      cmake -S . -B build -DBUILD_SHARED_LIBS=ON -DCMAKE_INSTALL_PREFIX=$AMITEX -DCMAKE_INSTALL_LIBDIR=lib
+    elif [[ $FFT = "fftw3_f03" ]]
+    then
+      if [[ -d $FFTW3_ROOT ]]
+      then
+        CMAKE_FFTW_OPTION="-DFFTW_ROOT=$FFTW3_ROOT"
+      else
+        CMAKE_FFTW_OPTION=""
+      fi
+      cmake -S . -B build -DFFT_Choice=fftw_f03 $CMAKE_FFTW_OPTION -DBUILD_SHARED_LIBS=ON -DCMAKE_INSTALL_PREFIX=$AMITEX -DCMAKE_INSTALL_LIBDIR=lib
+#    elif [[ $FFT = "mkl" ]]
+#    then
+#      cmake -S . -B build -DFFT_Choice=mkl -DFFTW_ROOT=$FFTW3_ROOT
+    else
+      echo "ERROR install : variable FFT is wrong"
+      exit 0 
+    fi
+    export FC=$A
+  elif [[ $DCMP = "old" ]]
+  then
+    cd "$DECOMP2D/src"
+    cp Makefile.inc.x86 Makefile.inc
+    $SED -i "/^FFT\=/c\FFT=$FFT" Makefile.inc
+    $SED -i "/^F90\=/c\F90=$MPIFC" Makefile.inc
+    $SED -i "/^CC\=/c\CC=$MPICC" Makefile.inc
+
+    #specific fftw
+    $SED -i "/^FFTW_inc\=/c\FFTW_inc=$FFT_inc" Makefile.inc
+    $SED -i "/^FFTW_lib\=/c\FFTW_lib=$FFT_lib" Makefile.inc
+
+    #specific mkl
+    $SED -i "/^  IFORT\=/c\  IFORT=$FC" Makefile.inc
+    $SED -i "/^MKL_PATH\=/c\MKL_PATH=$MKL_path" Makefile.inc
+    $SED -i "/^MKL_LIB_PATH\=/c\MKL_LIB_PATH=$MKL_lib" Makefile.inc
+    $SED -i "s/libmkl_gf.a/$MKL_lib_gf/g" Makefile.inc
+
+    $SED -i "/^OPTIONS\=/c\OPTIONS\=$PREC $T3PIO $OPENMP $PIC"  Makefile.inc
+    $SED -i "/^T3PIO_PATH\=/c\T3PIO_PATH=$T3PIO_path" Makefile.inc
+
+    #openmp=-qopenmp
+    $SED -i "/^CRAYPTR\=/c\CRAYPTR\=#-fcray-pointer" Makefile.inc
+    $SED -i "/^OMP0\=/c\OMP0=$openmp" Makefile.inc
+
+    $SED -i "/^OPTIM_2decomp\=/c\OPTIM_2decomp=$OPTIM_2decomp" Makefile.inc
+    $SED -i "/^OPTIM_amitex\=/c\OPTIM_amitex=$OPTIM_amitex" Makefile.inc
+  else
+    echo "ERROR install : variable DCMP different from old or new"
+  fi
+fi
+
+
+#configuration of FoX
+cd $FOX
+echo ""
+echo "Configuration of FoX"
+pwd
+cmake -S. -Bbuild -DCMAKE_INSTALL_PREFIX=$AMITEX -DCMAKE_Fortran_COMPILER=$FC -DBUILD_SHARED_LIBS=ON -DCMAKE_BUILD_TYPE=Release
+# $SED -i "/^FC\=/c\FC=$FC" arch.make
+
+#=========================================== configuration of amitex_fftp
+
+# Environment used by plugin/tools Makefiles
+export AMITEX_PATH="$DIR"
+
+# Configuration de env_amitex.sh
+cd $DIR
+$SED -i "/export AMITEX_PATH/c\export AMITEX_PATH=$DIR"  env_amitex.sh
+
+# Configuration of libAmitex
+
+if [[ $DCMP = "new" ]]
+then
+	DECOMP2D_LIB="-ldecomp2d"
+else
+	DECOMP2D_LIB="-l2decomp_fft"
+fi
+FoX_LIBS=$( ${FOX}/FoX-config --libs )
+DEP_LIBS="$DECOMP2D_LIB $FoX_LIBS"
+
+# Configuration of amitex_fftp-config
+
+cp $AMITEX/src/amitex_fftp-config.in $AMITEX/bin/amitex_fftp-config
+if [[ $DCMP = "new" ]]
+then
+  $SED -i "/^FLAG_2DECOMP\=/c\FLAG_2DECOMP=-DNEW_2DECOMP" $AMITEX/bin/amitex_fftp-config
+fi
+# No debug/optimisation flags here by default, handled by end users
+$SED -i "/^FLAGS_AMITEX\=/c\FLAGS_AMITEX=\"-cpp $OPENMP $PREC\"" $AMITEX/bin/amitex_fftp-config
+$SED -i "/^FLAGS_OPTIM\=/c\FLAGS_OPTIM=\"$OPTIM_amitex\"" $AMITEX/bin/amitex_fftp-config
+$SED -i "/^FC\=/c\FC=\"$FC\"" $AMITEX/bin/amitex_fftp-config
+$SED -i "/^MPIFC\=/c\MPIFC=\"$MPIFC\"" $AMITEX/bin/amitex_fftp-config
+$SED -i "/^DEP_LIBS\=/c\DEP_LIBS=\"$DEP_LIBS\"" $AMITEX/bin/amitex_fftp-config
+
+$SED -i "/^CC\=/c\CC=\"$CC\"" $AMITEX/bin/amitex_fftp-config
+$SED -i "/^MPICC\=/c\MPICC=\"$MPICC\"" $AMITEX/bin/amitex_fftp-config
+
+#=========================================== configuration of amitex_fftp user
+
+#-----------------------------------------------USER MODEL - type 2
+cd "$AMITEX/src/user_Kochman2"
+
+# copy Makefile towards user_Miehe2, user_biscale2
+cp Makefile ../user_Miehe2
+cp Makefile ../user_biscale2
+
+# copy README
+cp README ../user_ddd_mm2
+cp README ../user_Miehe2
+cp README ../user_biscale2
+
+#-----------------------------------------------USER MODEL - type 3
+cd "$AMITEX/src/user_gurtinSSnloc3"
+
+# copy Makefile
+cp Makefile ../user_Kochman3
+cp Makefile ../user_CahnHilliard3
+cp Makefile ../user_graingrowth3
+
+# copy README
+cp README ../user_Miehe3
+cp README ../user_Kochman3
+cp README ../user_CahnHilliard3
+cp README ../user_graingrowth3
+
+
+#=========================================== configuration of material behaviours
+
+# Configuration makefile for compiling new material behavior 
+#	then copy and adaptation towards materiauxK 
+#	(+copy towards other examples, see "Configuration of examples")
+
+cd "$AMITEX/src/materiaux"
+if [[ $FASTMATH = "no" ]]
+then
+   $SED "/FASTMATHgnu=/c\FASTMATHgnu=" Makefile.in > Makefile
+elif [[ $FASTMATH = "yes" ]]
+then
+   $SED "/FASTMATHgnu=/c\FASTMATHgnu=-ffast-math" Makefile.in > Makefile
+else
+  echo FASTMATH must be \"yes\" or \"no\" >> $LOG
+  ERR=1
+   
+fi 
+
+cp "$AMITEX/src/materiaux/Makefile" "$AMITEX/src/materiauxK"
+cd "$AMITEX/src/materiauxK"
+$SED -i -e "s/libUmatAmitex.so/libUmatAmitexK.so/g" Makefile
+
+
+# Configuration of the example comportement/mazars 
+# NOTHING TO DO
+
+# Configuration of the example comportement/polyxCC 
+cd "$EX/comportements/polyxCC"
+cp "$AMITEX/src/materiaux/Makefile" comportement_umat/
+
+
+# Configuration of the example comportement/polyxGD 
+cd "$EX/comportements/polyxGD"
+cp "$AMITEX/src/materiaux/Makefile" comportement_umat/
+
+#===========================================  Configuration of scripts (cas_tests & validation & resultats)
+cd $VALID
+
+$SED -i "/:\$LD_LIBRARY_PATH/c\LD_LIBRARY_PATH=$DIR/cas_tests/lib_user_functions:\$LD_LIBRARY_PATH"    script_tests.sh
+$SED -i "/^FC\=/c\FC=$FC"     script_tests_maldives
+$SED -i "/  cd/c\  cd $VALID" script_tests_maldives
+$SED -i "/^FC\=/c\FC=$FC"     script_tests_marquises
+$SED -i "/^FC\=/c\FC=$FC"     script_tests_maldives_openmp
+$SED -i "/  cd/c\  cd $VALID" script_tests_maldives_openmp
+$SED -i "/  cd/c\  cd $VALID" script_tests_poincare
+$SED -i "/^FC\=/c\FC=$FC"     script_tests_poincare
+$SED -i "/  cd/c\  cd $VALID" script_tests_cobalt
+$SED -i "/  cd/c\  cd $VALID" script_tests_irene
+$SED -i "/  cd/c\  cd $RESULTS" update_results.sh 
+$SED -i "/PWD0=/c\PWD0="$RESULTS"" clean_results.sh 
+
+# Configurarion of examples PhaseField
+
+cd "$EX_PF/behavior"
+cp "$AMITEX/src/materiaux/Makefile" ./
+
+cd "$EX_PF"
+$SED -i "/PWD0=/c\PWD0="$RESULTS_PF"" clean_results_PF.sh 
+$SED -i "/^FC\=/c\FC=$FC"     script_tests_marquises2
+$SED -i "/^FC\=/c\FC=$FC"     script_tests_marquises3
+$SED -i "/^FC\=/c\FC=$FC"     script_tests_marquises3b
+
+
+# Configuration of cas_tests/materiaux/mat_*.xml
+libUmatAmitex="$AMITEX/src/materiaux/libUmatAmitex.so"
+libUmatAmitexK="$AMITEX/src/materiauxK/libUmatAmitexK.so"
+libUmatMazars="$DIR/cas_tests/comportements/mazars/src/libUmatBehaviour.so"
+libUmatPolyx="$DIR/cas_tests/comportements/polyxCC/comportement_umat/libUmatAmitex.so"
+libUmatPolyxGD="$DIR/cas_tests/comportements/polyxGD/comportement_umat/libUmatAmitex.so"
+libUmatGurtinHPP="$DIR/cas_tests/comportements/gurtin_hpp_glissement_simple/src/libUmatBehaviour.so"
+cd "$EX/mate"
+#$SED -i "s#lib_to_be_filled#$libUmatAmitex#g"  mat_beton.xml
+#$SED -i "s#lib_to_be_filled#$libUmatAmitex#g"  mat_fissure.xml
+#$SED -i "s#lib_to_be_filled#$libUmatAmitex#g"  mat_incl_pore1.xml
+#$SED -i "s#lib_to_be_filled#$libUmatAmitex#g"  mat_incl_pore2.xml
+#$SED -i "s#lib_to_be_filled#$libUmatAmitex#g"  mat_lin_2.xml
+#$SED -i "s#lib_to_be_filled#$libUmatAmitex#g"  mat_linaniso.xml
+#$SED -i "s#lib_to_be_filled#$libUmatAmitex#g"  mat_lin_GD.xml
+#$SED -i "s#lib_to_be_filled#$libUmatAmitex#g"  mat_lin.xml
+#$SED -i "s#lib_to_be_filled#$libUmatAmitex#g"  mat_continuous_R10.xml
+#$SED -i "s#lib_to_be_filled#$libUmatAmitex#g"  mat_polyx_laminate_elasiso.xml
+#$SED -i "s#lib_to_be_filled#$libUmatAmitex#g"  mat_polyx_reuss_elasiso.xml
+#$SED -i "s#lib_to_be_filled#$libUmatAmitex#g"  mat_polyx_elasiso.xml
+$SED -i "s#lib_to_be_filled#$libUmatMazars#g"  mat_mazars.xml
+$SED -i "s#lib_to_be_filled#$libUmatPolyx#g"   mat_polyx_bin.xml
+$SED -i "s#lib_to_be_filled#$libUmatPolyx#g"   mat_polyx.xml
+$SED -i "s#lib_to_be_filled#$libUmatPolyxGD#g" mat_polyx_GD.xml
+#$SED -i "s#lib_to_be_filled#$libUmatAmitex#g"  mat_thermo.xml
+#$SED -i "s#lib_to_be_filled#$libUmatAmitexK#g" mat_lin_diffusion.xml
+$SED -i "s#lib_to_be_filled#$libUmatGurtinHPP#g" mat_gurtin_user_hpp.xml
+#$SED -i "s#lib_to_be_filled#$libUmatAmitex#g"  mat_paramext_bicouche.xml
+#$SED -i "s#lib_to_be_filled#$libUmatAmitex#g"  mat_thermo_bicouche.xml 
+
+#=========================================== tests compilers and mpi + installation log file
+#old version - pb on openSuse Tumbleweed (A. Villani)
+#FC_V=$($FC --version 2>&1)
+#MPI_V=$($MPIFC --version 2>&1)
+#MPI_R=$(mpirun --version 2>&1)
+#new version (A. Villani)
+FC_V=$(eval $FC --version)
+MPI_V=$(eval $MPIFC --version)
+MPI_R=$(eval mpirun --version)
+
+ERR=0
+# Creating log file
+touch $LOG
+echo "INSTALLATION D'AMITEX_FFTP" > $LOG
+echo "compilateurs:" >> $LOG
+echo " $FC --version:" >> $LOG
+echo " 	$FC_V" >> $LOG
+echo "" >> $LOG
+echo " $MPIFC --version:" >> $LOG
+echo "	$MPI_V" >> $LOG
+echo "" >> $LOG
+echo " mpirun --version:" >> $LOG
+echo "	$MPI_R" >> $LOG
+echo "" >> $LOG
+echo "Bibliotheque de fft: $FFT" >> $LOG
+echo "$FFT_inc" >> $LOG
+echo "$FFT_lib" >> $LOG
+
+# Verfication that FC, MPIFC and mpirun are consistent
+if [[ $FC_V != $MPI_V ]]
+then
+  echo error: the compiler used by MPIFC is different from FC:
+  echo FC\=$FC_V
+  echo MPIFC\=$MPI_V
+  echo error: the compiler used by MPIFC is different from  FC: >> $LOG
+  echo FC\=$FC_V >> $LOG
+  echo MPIFC\=MPI_V >> $LOG
+  ERR=1
+fi
+
+if [[ $ERR = 1 ]]
+then
+  exit 1
+fi
+
+#=========================================== Compilations
+# compilation of 2decomp
+echo ""
+echo "Compilation 2decomp&fft"
+# './clean light' remove modules/libs in libAmitex but not build artifacts, 
+# so just call make/cmake (which will do linking only), then install.
+if [[ $DCMP = "new" ]]
+then
+  cd "$DECOMP2D_NEW"
+  cmake --build build --verbose
+  cmake --install build 
+else
+  cd "$DECOMP2D"
+  make
+  mv lib/*.so $AMITEX/lib/
+  # Modules are not regenerated, must be copied
+  cp include/*.mod $AMITEX/include/
+fi
+
+#compilation of FoX
+echo ""
+echo "Compilation de FoX"
+# ./clean remove modules/libs in libAmitex but not build artfect, 
+# so just call make/cmake (which will do linking only), then install.
+cd $FOX
+cmake --build build --verbose
+# No install target, do it by hand.
+mv build/lib/* $AMITEX/lib/
+# Modules are not regenerated, must be copied
+cp build/modules/*.mod $AMITEX/include/
+
+
+# Compilation of Amitex_fftp
+cd "$AMITEX/src"
+echo ""
+echo "Compilation of AMITEX sources"
+pwd
+make
+
+#                STOP MAINTIEN USER MODEL -TYPE 1 <-- VERSION 9.0.0
+# Compilation of Amitex_fftp user "Kochman"
+#cd "$AMITEX/src/user_Kochman"
+#echo ""
+#echo "Compilation of AMITEX USER KOCHMAN"
+#pwd
+#make
+
+# Compilation of Amitex_fftp user "Miehe"
+#cd "$AMITEX/src/user_Miehe"
+#echo ""
+#echo "Compilation of AMITEX USER MIEHE"
+#pwd
+#make
+
+# Compilation of Amitex_fftp user "CahnHilliard"
+#cd "$AMITEX/src/user_CahnHilliard"
+#echo ""
+#echo "Compilation of AMITEX USER CAHN-HILLIARD"
+#pwd
+#make
+
+# Compilation of Amitex_fftp user "ddd_mm"
+#cd "$AMITEX/src/user_ddd_mm"
+#echo ""
+#echo "Compilation of AMITEX USER DDD MICROMEGAS"
+#pwd
+#make
+
+# Compilation of Amitex_fftp user "Kochman2"
+cd "$AMITEX/src/user_Kochman2"
+echo ""
+echo "Compilation of AMITEX USER KOCHMAN2"
+pwd
+make
+
+# Compilation of Amitex_fftp user "ddd_mm2"
+cd "$AMITEX/src/user_ddd_mm2"
+echo ""
+echo "Compilation of AMITEX USER DDD MICROMEGAS 2"
+pwd
+make
+
+# Compilation of Amitex_fftp user "Miehe2"
+cd "$AMITEX/src/user_Miehe2"
+echo ""
+echo "Compilation of AMITEX MIEHE 2"
+pwd
+make
+
+# Compilation of Amitex_fftp user "biscale2"
+cd "$AMITEX/src/user_biscale2"
+echo ""
+echo "Compilation of AMITEX BISCALE 2"
+pwd
+make
+
+# Compilation of Amitex_fftp user "Miehe3"
+cd "$AMITEX/src/user_Miehe3"
+echo ""
+echo "Compilation of AMITEX USER MIEHE3"
+pwd
+make
+
+# Compilation of Amitex_fftp user "Kochman3"
+cd "$AMITEX/src/user_Kochman3"
+echo ""
+echo "Compilation of AMITEX USER KOCHMAN3"
+pwd
+make
+
+# Compilation of Amitex_fftp user "CahnHilliard3"
+cd "$AMITEX/src/user_CahnHilliard3"
+echo ""
+echo "Compilation of AMITEX USER CAHNHILLIARD3"
+pwd
+make
+
+# Compilation of Amitex_fftp user "graingrowth3"
+cd "$AMITEX/src/user_graingrowth3"
+echo ""
+echo "Compilation of AMITEX USER GRAINGROWTH3"
+pwd
+make
+
+# Compilation of Amitex_fftp user "GurtinSS2nloc3"
+cd "$AMITEX/src/user_gurtinSSnloc3"
+echo ""
+echo "Compilation of AMITEX USER GURTINSSNLOC 3"
+pwd
+make
+
+
+# Compilation de tools/optim_2decomp
+cd "$AMITEX/tools/optim_2decomp"
+echo ""
+echo "Compilation of tools: OPTIM_2DECOMP"
+pwd
+make
+
+
+# Compilation of behavior polyxCC 
+cd "$EX/comportements/polyxCC"
+echo ""
+echo "Compilation of behavior polyxCC "
+cd "$EX/comportements/polyxCC/comportement_umat"
+pwd
+make
+
+# Compilation of behavior polyxGD
+cd "$EX/comportements/polyxGD/comportement_umat"
+echo ""
+echo "Compilation of behavior polyxGD"
+pwd
+make
+
+# Compilation of behavior  mazars (mfront)
+cd "$EX/comportements/mazars"
+echo ""
+echo "Compilation of behavior mazars (mfront)"
+pwd
+if [[ $FC = "ifort" ]]
+      then
+      CC=icc CXX=icpc FC=ifort F77=ifort $MFRONT --obuild --interface=umat Mazars.mfront
+      else
+      $MFRONT --obuild --interface=umat Mazars.mfront
+fi
+
+# Compilation of behavior  gurtin
+cd "$EX/comportements/gurtin_hpp_glissement_simple/"
+echo ""
+echo "Compilation of behavior GurtinHPP"
+pwd
+if [[ $FC = "ifort" ]]
+      then
+      CC=icc CXX=icpc FC=ifort F77=ifort $MFRONT --obuild --interface=umat gurtin_glissement_simple.mfront
+      else
+      $MFRONT --obuild --interface=umat gurtin_glissement_simple.mfront
+fi
+
+# Compilation lib_user_functions
+cd "$EX/lib_user_functions/"
+make
+
+
+# Compilation of behaviors  Phase Field
+cd "$EX_PF/behavior"
+echo ""
+echo "Compilation of behaviors  Phase Field"
+pwd
+make
+
+
+# Compilation for validation 
+cd $VALID
+echo ""
+echo "Compilation of compare for validation"
+pwd
+make
+
+# Compilation for visualization
+cd $DSH
+echo ""
+echo "Compilation of deformedShape for visiualization (Finite Strains)"
+make
+
+#---------------------------------------NEW_2DECOMP TO BE CONTINUED!
+
+#------------------------------------------------SPECIFIC MARQUISES
+# MFRONT compiling of gurtin_hpp_glissement_simple on MARQUISES
+#A=$(hostname)
+#
+#if [[ $A == marquises* ]]
+#then
+#   echo "compilation MFRONT sur marquises de gurtin_hpp_glissement_simple"
+#   module unload intel
+#   cd $EX/comportements/gurtin_hpp_glissement_simple
+#   mfront --obuild --interface=umat gurtin_glissement_simple.mfront
+#   if [[ $FC = "ifort" ]]
+#      then 
+#      module load intel/15.0.0.090
+#   fi
+#fi
+
+
+
+

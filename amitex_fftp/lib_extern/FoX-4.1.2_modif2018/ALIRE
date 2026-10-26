@@ -1,0 +1,7 @@
+La version 4.1.2 generait un bug du compilateur (gcc-8.1.0).
+
+Probleme deja rencontre avec le code Quantum Espresso => https://gitlab.com/QEF/q-e/issues/28
+
+Remplacement de la version 4.1.2 par une version contournant le pb (=> https://gitlab.com/QEF/q-e/issues/28)
+
+Mais le pb vient bien du compilateur et pas de FoX!

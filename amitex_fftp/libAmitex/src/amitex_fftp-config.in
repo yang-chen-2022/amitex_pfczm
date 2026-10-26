@@ -1,0 +1,122 @@
+#!/bin/bash
+
+HERE=$(dirname ${BASH_SOURCE[0]})
+
+AMITEX_PATH=$(dirname ${HERE})
+
+moddir="${AMITEX_PATH}/include"
+libdir="${AMITEX_PATH}/lib"
+
+FC=
+MPIFC=
+FLAGS_AMITEX=
+FLAGS_OPTIM=
+FLAG_2DECOMP=
+
+CC=
+MPICC=
+
+DEP_LIBS=
+amitex_libs="-L${libdir} -lamitex -luser_functions ${DEP_LIBS} -ldl"
+amitex_libs_plugin="${amitex_libs} -lamitex_plugin"
+amitex_dep_libs="-L${libdir} ${DEP_LIBS}"
+
+include_flags="-I${moddir}"
+
+amitex_flags="${include_flags} ${FLAGS_AMITEX} ${FLAG_2DECOMP}"
+
+help()
+{
+    cat <<EOF
+Usage: amitex-fftp-config [OPTION]
+
+Possible values for OPTION are:
+
+  --fc              print fortran compiler
+  --mpifc           print MPI fortran compiler wrapper
+  --cc              print C compiler
+  --mpicc           print MPI C compiler wrapper
+
+  --fcflags         print include flags and pre-processor and compiler flags
+  --fcflags-opt     print optimization compiler flags
+
+  --include         print include flags
+
+  --libs            print library linking information
+                    (do not link with 'amitex_fftp' main program)
+  --plugin-libs     print library linking information for plugins 
+                    (same as --libs and add -lamitex_plugin, to link with 'amitex_fftp' main program)
+  --libs-deps-only  print library linking information (amitex_fftp dependencies only)
+  
+  -h,--help         display this help and exit
+EOF
+
+    exit $1
+}
+
+FLAGS=""
+
+while test $# -gt 0; do
+    #case "$1" in
+    #-*=*) optarg=`echo "$1" | sed 's/[-_a-zA-Z0-9]*=//'` ;;
+    #*) optarg= ;;
+    #esac
+	case "$1" in
+    -h|--help)
+		help 0
+		;;
+
+    --fc)
+        FLAGS="${FLAGS} ${FC}"
+       	;;
+
+    --mpifc)
+        FLAGS="${FLAGS} ${MPIFC}"
+       	;;
+
+    --include)
+        FLAGS="${FLAGS} ${include_flags}"
+       	;;
+
+    --fcflags)
+        FLAGS="${FLAGS} ${amitex_flags}"
+       	;;
+
+    --fcflags-opt)
+        FLAGS="${FLAGS} ${FLAGS_OPTIM}"
+       	;;
+
+    --cc)
+        FLAGS="${FLAGS} ${CC}"
+       	;;
+
+    --mpicc)
+        FLAGS="${FLAGS} ${MPICC}"
+       	;;
+
+    --cflags)
+        FLAGS="${FLAGS} ${include_flags}"
+       	;;
+
+    --libs)
+        FLAGS="${FLAGS} ${amitex_libs}"
+       	;;
+
+    --plugin-libs)
+        FLAGS="${FLAGS} ${amitex_libs_plugin}"
+       	;;
+
+    --libs-deps-only)
+        FLAGS="${FLAGS} ${amitex_dep_libs}"
+       	;;
+
+    *)
+	help 1
+	;;
+    esac
+    shift
+done
+
+echo $FLAGS
+
+exit 0

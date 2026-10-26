@@ -1,0 +1,47 @@
+RECUPERATION DU DEPOT SVN MICROMEGAS
+
+compte svn sur zig.onera.fr:
+login : 
+MdP: 
+
+svn checkout --username lgelebart http://zig.onera.fr/svn/dd
+
+pour update de dd/trunk
+dans trunk :  svn update
+
+
+COMPILATION
+dans dd/trunk/bin
+
+	Configuration
+	options de compilation dans Make_DEFS.linux
+	en creer un nouveau si nécessaire et l'ajouter dans le fichier "config" (copier-coller autres config)
+	le chemin vers X11 n'est pas correct (pb interface graphique?...)
+
+	Compilation	
+	make -f config linux
+        make clean
+	make mm 	compile de mM standard (non parallèle)
+	make mMAMITEX	compile version parallele + couplage 	
+	make mmp	compile version parallele 	
+	make gmm	compile de mM standard avec interface graphique 
+	make cam	visualisation propre à mM
+	make film2para	creation de fichiers vtk
+	make mMAMITEX VER=db Compilation debug
+
+
+NETTOYAGE AVANT pull
+	make cleanall
+	+ rm makefile, mMAMITEX.db etc... tous les fichiers nons suivis par svn (svn stat renvoie des ?)
+
+PULL (update)
+	dans mM/dd/trunk : svn update
+	
+EXECUTION
+	./mm : execute le cas test défini dans ../in/input.dd (materiau/contyrole/config)
+		-> test traction sur cuivre
+
+CREATION DE BOUCLE
+	fichier confinit_def
+	mM --initconf
+

@@ -1,0 +1,19 @@
+MISE EN PLACE DU FILTRE DE CAI DANS FOURIER
+============================================
+
+ATTENTION : on rentre en dur la decomposition 2decomp => ajuster mpirun -np nproc (ici nproc = 1)
+
+2 méthodes : 
+------------
+- utilisation de la fonction analytique dans Fourier
+- utilisation de la FFT du filtre
+Comparaison calcul direct de la convolution associée a un dirac 
+
+Résultats :
+- méthode 1 (Fourier analytique) : 
+	* resultats semblent corrects MAIS écart augmente si on diminue le rayon du filtre (ici Ncai)
+	  => sur quelques tests il faut au moins avoir a = 5-6 dx, c'est genant!
+	  => est-ce "normal" ou est-ce un pb d'implémentation?
+- méthode  2 (Fourier numérique) :
+	* on reconstruit parfaitement le filtre associé au dirac (par construction)
+	  => ça "semble" mieux.

@@ -1,0 +1,355 @@
+GRAND PRINCIPE : 
+
+* definir un type SIMU regroupant tous les objets necessaires a une simulation
+
+* dans les modules actuels : 
+	- dedoubler les composantes de la SIMU :
+		* a l'initialisatrion : on ajoute un indice 0 -> composante0
+		* a l'utilisation :     on garde le nom mais on ajoute attribut pointer
+		
+* dans le programme principal
+	SIMU%composante = composante0
+	composante=> SIMU%composante
+
+=================================================================================	
+ETAT AU 12/02/2021 : 
+	transfert en pointer de toutes les variables public des modules
+	TESTS actuels OK (sauf fissure_1proc)
+
+intel15 / marquises : OK sauf PB fissure_1proc
+	Avec modif intel15 pour fissure_1proc dans resolution_mod.f90 :
+		Avec debug : 	OK - 386s (bcp temps dans fissure_1proc)
+                                   sauf polyXCC_defimp (plantage umat connu))
+		Sans debug :	OK sauf fissure_1proc  - 161s (vs 156s avant pointer)
+	Sans modif (version commitee) : 
+		Sans debug : 	OK sauf fissure_1proc - 139s
+
+gcc810 / marquises  : OK tous
+		Sans debug : OK tous - 274s (vs 279s avant pointer)
+		Avec debug : OK tous - 275s (vs 279s avant pointer)
+=================================================================================	
+TODO AU 22/03/2020 :
+
+	TESTS a poursuivre :
+		- gros calculs/marquises
+		- autres compilo cobalt/irene
+
+    TRAITER les WARNING (intel et gcc)
+
+    GESTION DES DESALLOCATION (type derives dans tous les modules)
+    
+    TESTER  : - bi_scale + non-locale à l'échelle locale
+              - tris-scale
+------------------------------------------------------------------------ EN COURS
+SPLIT RESOLUTION_MOD 
+pour eviter appel module circulaire dans user_biscale2
+-> detecte par intel17 sur Cobalt
+
+
+------------------------------------------------------------------------ ETAT 21/03/2021
+PROPAGATIONS MODIFS NON-LOCAL/USER/DEFORMED_SHAPE
+	stop suivi des user_xxx
+	dernieres variables public transformees en pointer pour SIMU_AMITEX
+	
+	Adaptation amitex_lib/deformedShape :
+		ajout init_amitex_lib_0 (a appler juste apres MPI_INIT)
+		modif init_amitex_lib   (a appeler juste apres initialisatios 2decomp_fft)
+		-> initialisatin de quelques composantes de SIMU(1)
+		-> association des pointers correspondants
+	+ adaptation des Makefile (pour deformedShape et pour construction libamitex2)
+		
+
+------------------------------------------------------------------------ ETAT 15/03/2021
+MISE EN PLACE SIMU BISCALE dans src user_biscale2
+dev dans user_biscale2
+cas_test dans cas_test_AME
+15/03/2021 : Mécanisme "biscale2" fonctionne en NL!!
+
+------------------------------------------------------------------------ ETAT 15/03/2021
+ENTRETIEN resolution_mod.f90 (et consequences simu_mod.f90) 
+  EN PREVISION "chainage fort" (a chaque pas simu maitre lance simu 'esclave')
+=> SIMPLIFIER au maximum l'appel a unpas_NL_base
+
+field_mod.f90      : ajout times_f (type TIMES_FIELD)
+green_mod.f90      : ajout times_g
+io2_amitex_mod.f90 : ajout times_io
+material_mod.f90   : ajout times_m
+resolution_mod.f90 : ajout times_b (b= algo de 'b'ase)
+                     ajout simu_name (utile pour sortie si plusieurs simu!)
+sortie_std_mod.f90 : ajout times_s
+
+resolution_mod.f90 : 
+                 crit (type CRIT_BASE) regroupe tous les criteres
+                 report de nombreux calculs de temps au sein des principales fonctions
+                 unpas_NL_base ajout locload, locloadD optionel pour realiser unpas sans passer par get_current_loading
+                 fonctions "log" : log_after_unpas, log_final_times
+                 fonction "update_local_load" : sortie de unpas_NL_base
+simu_mod.f90 :   prise en cmpte de ces modifs dans les toutes fonctions
+                 variable SIMU déclarée ici (accessible par les modules user)
+                 
+loading_mod.f90 : tableau de temps (-2,-1,0) t_load mis en composante de local_loading
+
+param_algo_mod.f90 : user_param -> pointer / user_param0 pour initialisation
+
+------------------------------------------------------------------------- ETAT 26/02/2021
+MISE En PLACE MODULE simu_mod.f90 + REECRITURE amitex_fftp.f90
+
+simu_mod.f90 : 
+    type SIMU_AMITEX 
+    fonction init_simu_command_line : 
+           initialise variables d'initialisation
+           remplit SIMU
+           MAJ les pointeurs
+           desalloue les variables d'initialisation
+           Possibilite de lire les donnees dans un fichier (modif lire_command dans amitex_mod)
+
+    fonction nullify_pointers_simu :
+           met a l'etat nul tous les pointeurs utilises dans une simu     
+                  
+    fonction associate_pointers_simu :
+           associe tous les pointeurs aux composantes d'un objet SIMU_AMITEX            
+
+amitex_fftp.f90 :
+    utilisation init_simu_command_line
+    utilisation nullify_pointers_simu puis associate_pointers_simu
+    test possibilite de lire et lancer une deuxieme simu
+                   
+
+
+
+
+------------------------------------------------------------------------- ETAT 12/02/2021
+MISE EN PLACE DE POINTERS / VARIABLES INITIALISATION
+
+MODULES sans variables "public" : 
+	amitex_lib.f90
+	amitex_user_mod.f90
+	error_mod.f90
+	io2_amitex_mod.f90
+	io_amitex_mod.f90
+	linear_mod.f90
+	non_local_mod.f90
+	non_local_user_mod.f90
+	resolution_mod.f90
+	resolution_user_mod.f90
+	standard_user_mod.f90
+	user_functions_mod.f90
+
+amitex_fftp.f90 :
+-----------------
+Nouveau type (SIMU_AMITEX), variable : SIMU
+	* param_algo_mod.f90 				~OK (voir ci-dessous)
+	* sortie_std_mod.f90 				OK
+	* material_mod.f90 	nmateriaux ok
+	                    matref ok
+	                    mattotp ok
+	* loading_mod.f90   
+    * amitex_mod.f90
+    * green_mod.f90
+    
+Affectation et MAJ de SIMU et pointeur pour sorties : JUSTE APRES lire_commande
+Nouvel objet regoupant les infos de suivi des voxels composites
+
+Modifs (AVANT LE CHECK):
+	algo_param -> algo_param0
+	nmateriaux -> namteriaux0%n 
+	C0,K0D,LambdaMu0 -> Matref0
+	RAS : MattotP -> n'apparait pas dans amitex_fftp.f90 (av check)
+    local_loading(D)xx -> local_load(D)%t1, t0, dt
+    nb_load -> nb_load0
+    n_gragradU -> n_gragradU0
+    nb_load -> nb_load0
+    
+-------------------------------------------------------------------------
+amitex_mod.f90 : 			OK	TODO Nloc, GNloc
+----------------
+Nouveaux types et variables 
+	* passage pointeurs : tous les "champs"  + CVFORsauv
+	
+Declaration publique :
+				fic_vtk0,fic_log0,fic_std0, Fvtk0, Fstd0, FMstd0, Fzstd0, Flog0
+				et pointeurs associés
+Fvtk0, Fstd0, FMstd0, Fzstd0, Flog0 sont initialise par defaut
+fic_vtk0,fic_log0,fic_std0 sont sortie de lire_commande
+
+Modification initialisations
+
+	* lire_commande : Flog -> Flog0
+
+
+-------------------------------------------------------------------------
+algo_functions_mod.f90 : 
+------------------------
+tous les local_loading sont en argument de fonction
+
+-------------------------------------------------------------------------
+field_mod.f90 :			OK post/deformed_shape/deformedShape.log
+---------------
+passage 'pointer' de toutes les variables publiques
+
+-------------------------------------------------------------------------
+green_mod.f90 : 		OK
+----------------
+tous les local_loading sont en argument de fonction : RAS
+allocated(FvolNF) -> associated(FvolNF)
+
+Nouveaux types et variables 
+	* declaration publique : grid0
+
+Modif print (a remettre comme avant)
+	* print_grid : grid -> grid0
+	
+Modification initialisations
+	* initGrid : grid -> grid0
+	* initFreq : grid -> grid0
+
+
+-------------------------------------------------------------------------
+io2_amitex_mod.f90 :
+--------------------
+
+Modifications nouvelle variable
+	* writeVTK : nmateriaux -> nmateriaux%n
+	* MattotP : RAS(-> MattotP0 dans les commentaires)
+	
+-------------------------------------------------------------------------
+loading_mod.f90 :			OK
+-----------------
+ATTENTION : suppression variable globale nb_load (inutile) 
+Nouveaux types et variables 
+	* nouveau type : LOCALLOAD
+	                 
+	* declaration publique :
+				load,load0, local_load(0), local_loadD(0),
+				n_gradgradU(0),nb_load(0)
+
+
+Modif print (a remettre comme avant)
+	* check_loading       : algo_param -> algo_param0
+	                        load -> load0
+	* print_loading       : algo_param -> algo_param0
+	                        load -> load0
+	                        initValues -> initValExt0
+	* print_param_extract : algo_param -> algo_param0
+		                    load -> load0
+                            MattotP -> MattotP0
+                            extract -> extract0
+    * print_initLoadext   : initValues -> initValExt0
+                            
+Modification initialisations
+	* read_load        : algo_param -> algo_param0
+	      + set_zone_to_print (private appele par read_load)
+	                     load -> load0
+	                     MattotP -> MattotP0
+	                     extract -> extract0
+	      + set_zone_to_print (private appele par read_load)
+	      + set_intvar_to_print (private appele par read_load) post/deformed_shape/deformedShape.log
+	* get_loadList_xml : algo_param -> algo_param0
+	                     load -> load0
+	* getLoadTime      : load -> load0
+	* getLoadParam     : load -> load0
+	                     initValues -> initValExt0
+	* get_load         : algo_param -> algo_param0
+		                 load -> load0
+	* get_load_graddef : algo_param -> algo_param0
+		                 load -> load0
+		                 n_gradgradU -> n_gradgradU0
+	* get_current_nb_param : load -> load0
+	* set_time         : load -> load0
+	* deallocate_load  : load -> load0
+	* getInitLoadExt   : initValues -> initValExt0
+	* nmateriaux : partout en argument de fonction -> non modifié
+	* partout : LambdaMu0 -> matref0%LambdaMu0
+-------------------------------------------------------------------------
+material_mod.f90 :  		OK TODO (reflexion a poursuivre modèles non-locaux)
+------------------
+Nouveaux types et variables 
+	* nouveau type : NMATERIAL (regourpe les 6 nmateriaux_xxx)
+	                 MATERIAL_REFERENCE
+	                 INFO_VOXCOMP
+	* declaration publique : types derivés
+							nmateriaux,nmateriaux0, Matref,Matref0
+
+Interphases et MatComposite : 
+   utiles uniquement lors de l'initiaisation
+   -> pas besoin de prevoir un pointer
+
+Modif print (a remettre comme avant)
+	* print_material_structure : algo_param -> algo_param0
+
+Modif initialisation 
+	* read_mat           : algo_param -> algo_param0
+	                       nmateriaux argument                       -> non modifie
+	                       mattotP -> MattotP0
+	* read_mat_composite : algo_param -> algo_param0
+	                       nmateriaux, nmateriaux_composite argument -> non modifie
+	                       mattotP -> MattotP0
+	* eval_nb_materiaux  : nmateriaux-> nmateriaux0%n
+	                       MattotP -> MattotP0
+	* C0,K0D,LambdaMu0 en argument -> non modifies
+
+
+Non_local_user_mod.f90 
+Non_local_mod.f90       :               TODO (reflexion a poursuivre modèles non-locaux)
+------------------------
+Modifications nouvelle variable : 
+	* MattotP : RAS (en commentaires)
+
+param_algo_mod.f90 :  OK / TODO (OU PAS) user_param, Nloc_algos, nloc_explicit, nloc_implicit
+--------------------
+Nouveaux types et variables 
+	* nouveau type : RAS
+	* declaration publique : types derivés
+							algo_param0
+
+Modif print (a remettre comme avant)
+	* print_param_algo     : algo_param -> algo_param0
+	* read_param           : algo_param -> algo_param0
+    * read_param_composite : algo_param -> algo_param0
+
+
+read_geom.f90 (initialisation) :
+--------------------------------
+
+Modifications initialisation (et nouvelle variable)
+	* partout : nmateriaux -> nmateriaux0%n 
+	* partout : MattotP -> MattotP0 
+	
+resolution_mod.f90 : post/deformed_shape/deformedShape.log
+--------------------
+
+Modifications nouvelle variable : 
+
+	* partout : C0 => Matref%C0 (et K0D, LambdaMu0)
+	* partout : local_loading(X)xx -> loacl_load(X)%t1,t0,dt
+	* nb_load -> size(load)
+    * Nouvel objet regoupant les infos de suivi des voxels composites
+         nIt_laminate, xxx_laminate -> VCinfo%nIt_lam, ...
+
+
+sortie_std_mod.f90 : 		OK
+--------------------
+Nouveaux types et variables 
+	* nouveau type (BUFFER_STD) (regroupe tous les buffers)
+		-> buffer, buffer0
+	* declaration publique : types derivés
+							buffer, buffer0, matComp_sortie, matcomp_sortie0
+							
+Modification initialisations
+	* init_buffers        : algo_param -> algo_param0 
+	                        buffer -> buffer0 
+	                        nmateriaux -> nmateriaux0%n 
+	                        MattotP -> MattotP0
+	                        extract -> extract0
+	* initSortie_std      : algo_param -> algo_param0 
+	                        extract -> extract0
+	* init_matcomp_sortie : matComp_sortie-> matComp_sortie0 
+	                        nmateriaux -> nmateriaux0%n 
+	                        MattotP -> MattotP0
+
+Modifications nouvelle variable
+	* sortie_std               : modif buffer, _tmp, _z,_m,_z_tmp,_m_tmp  
+	* remplir_buffer_diffusion : modif buffer, _tmp, _z,_m,_z_tmp,_m_tmp
+	* remplir_buffer_mecanique : modif buffer, _tmp, _z,_m,_z_tmp,_m_tmp
+	* partout : nmateriaux -> nmateriaux%n (ou nmateriaux0% n si initialisation)
+

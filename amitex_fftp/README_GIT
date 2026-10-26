@@ -1,0 +1,317 @@
+ASTUCE (pas git) POUR COMPTER LES LIGNES DE CODE DANS libAmitex/src
+==================================================================
+se placer dans libAmitex puis :		
+	find src/ -type f | xargs cat | wc -l
+
+
+ASTUCE RECHERCHE DE CHAINE DE CARACTERE
+=======================================
+par exemple dans src :
+	grep -i "size(mattotp([a-z])%zone" *
+		-i    : insensible a la casse
+                [a-z] : valeur possible de a a z 
+
+GESTION DES EMAILS ON PUSH
+==========================
+voir gitlab onglet projet / Settings / Integrations		
+
+REMARQUE VERSION GIT2.0 : action du push avec plusieurs branches
+=======================
+Au moment du git push : 
+warning: push.default is unset; its implicit value is changing in
+Git 2.0 from 'matching' to 'simple'. etc...
+
+'simple' permet de pusher que la branche courante 
+ => on ne push pas toutes les branches vers le depot distant
+        
+
+OK : on conserve ce fonctionnement ('simple') et
+     SOIT
+	on conserve ce warning
+     OU (pour supprimer ce warning)
+	git config --global push.default simple (modifie le .gitconfig) <= LE MIEUX!!
+
+
+REBASING : remettre des développements dans l'ordre, à la suite de la dernière évolution de master :
+==========         on gagne un historique linéaire 
+                   on perd l'historique des évolutions parallèles et donc le point de divergence
+git checkout dev_experiment
+git rebase master    (*)
+git checkout master
+git merge dev_experiment
+git branch -D dev_experiment
+
+(*) ATTENTION  : git rebase master peut générer des conflits
+             -> résoudre les conflits, puis
+             git rebase--continue
+             
+
+
+COMPARER DES FICHIERS SUR DES BRANCHES (OU COMMIT) DIFFERENTES
+==============================================================
+Exemples (chemin_complet_fichier : complet depuis le repertoire principal)
+	
+	git diff fichier		difference avec le dernier commit
+	git diff branch fichier		difference avec la branche 
+	git diff branch1:chemin_complet_fichier IDcommit:chemin_complet_fichier 
+	git diff branch:chemin_complet_fichier bracnh2:chemin_complet_fichier
+
+
+BRANCHES
+========
+supprimer une branche : juste après un merge (pas de commit entre temps)
+	git branch -d nom_branche
+
+merge : merge nom_branche dans branche locale
+	git merge nom_branche
+
+renommer une branche locale : 
+	git branch -m new-name			!renomme la branche courante
+	git branch -m old-name new-name		!renomme la branche old-name en new-name
+
+
+REMISAGE
+========
+git stash
+git stash list
+git stash drop
+git stash apply
+git stash pop 	: applique et supprime la remise de la pile
+
+
+TAGGUER une version
+===================
+	une fois la version validée (tests de validation OK) :
+		mettre à jour le fichier VERSIONS 
+		commit du fichier VERSIONS
+			git commit -a -m "message_commit"
+		tag du commit 	
+			git tag NOMTAG IDCOMMIT -m "message_tag"
+			NOMTAG = vI.J.K
+			message_tag=message court indiquant les évolution majeures depuis le dernier tag
+		push du commit : 	git push
+		push du tag :		git push --tags
+
+En cas d'erreur :
+	suppression d'un tag local : git tag -d NOMTAG
+	suppression d'un tag sur la version déportée (origin) : git push --delete origin NOMTAG
+
+Liste des tag avec leurs annotations (ici 1=nombre de ligne de l'annotation):
+	git tag -n1
+
+Supprimer un tag (ex)
+	git tag -d v3.2.0
+
+
+ARCHIVER UNE VERSION (exemple ici : version 5.1.1)
+==================================================
+
+	git archive --format=tar --prefix=amitex_fftp-v5.1.1/  v5.1.1 | gzip > ./amitex_fftp-v5.1.1.tar
+
+
+LOG	git log --stat 
+===		--graph
+
+MERGE de branche
+================
+	Avant de merger s'assurer que tous les changements on bien été commités dans chacune des branches
+
+ANNULER LE DERNIER COMMIT 
+=========================
+	git reset HEAD^		annule dernier commit et se positionne à l'avant dernier 
+	git reset IDcommit				se possitionne au commit IDcommit
+	Les fichiers en cours ne sont pas modifiés
+
+MODIFIER MESSAGE OU RAJOUTER UN FICHIER AU DERNIER COMMIT
+=========================================================
+	(git add fichier     si on a oublié de mettre un fichier dans le dernier commit)
+	git commit --amend   (permet de modifier le message et rajoute le fichier dans le dernier commit)
+
+MODIFIER MESSAGE D'UN COMMIT PLUS ANCIEN (NON PUSHE)
+====================================================
+	git rebase --interactive id_commit+1
+        remplacer pick par edit pour le ommit id_commit
+        git commit --amend
+        git rebase --continue
+
+RESOLUTION DE PROBLEME APRES UN PULL (MERGE)
+============================================
+3 possibilités
+	résoudre "à la main" les conflits
+	git checkout --ours nomfic :  	conserve la version locale du fichier 
+	git checkout --theirs nomfic :	conserve la version distante du fichier
+PUIS
+
+git commit (pour prendre en compte les conflits résolus)
+effectuer les tests de validation
+git push
+
+
+CREER UNE BRANCHE DISTANTE (PUIS L'UTILISER)
+===========================
+Création d'une branche local "new_branchL"
+
+Il est important de distinguer les noms de branches "new_branchL" et "new_branchD"
+
+Création sur le DEPOT (origin), à partir de la branche locale "new_branchL", de la branche distante "new_branchD":
+
+	git push origin new_branchL:new_branchD
+
+ATTENTION, ici la branche locale "new_branchL" ne 'suit pas' la bracnhe distante "new_branchD"
+
+RECUPERER ET SUIVRE UNE BRANCHE DISTANTE RECEMMENT CREE
+=========================================================
+Pour tout utilisateur (même celui qui a créé la branche Distante) : 
+
+        git remote show origin   ! pour verifier que la nouvelle branche est bien cree sur le depot
+	
+	git remote update	 ! pour récuperer le dépot (<=> fetching origin) avant de pouvoir suivre la nouvelle branche
+
+	git checkout --track origin/new_branchD
+		
+
+Chaque utilisateur a ainsi en local la branche "new_branchD" qui 'suit' la bracnhe distante  "new_branchD"
+
+Celui qui a créé la branche distante "new_branchD" à partir de "new_branchL" peut désormais supprimer "new_branchL"
+
+SUPPRIMER LA BRANCHE DISTANTE APRES UTILISATION
+================================================
+Supprimer la branche distante 
+
+        git push origin :new_branchD
+
+Commande ci dessous : pas clair... pas certain de l'interet...
+
+        git remote prune origin
+
+Supprimer la branche locale
+
+	git branch -D new_branchD
+
+CREER UNE EXTRACTION
+=====================
+ 1016  git clone --no-hardlinks ~/AMITEX/amitex_fftp 2decomp_mg
+ 1017  cd 2decomp_mg/
+ 1019  git filter-branch --prune-empty --subdirectory-filter lib_extern/2decomp_fft-1.5.847
+ 1038  git remote remove origin
+ 1039  git remote add origin https://github.com/LionelGelebart/2decomp15_mg.git
+# pb : sur le depot gthub la branche s'appelle main et dans 2decomp elle s'appelle master
+ 1048  git branch main
+ 1049  git checkout main
+ 1052  git branch --set-upstream-to=origin/main main
+ 1053  git pull
+ 1055  git branch -D master
+
+
+GIT/GITHUP PLUSIEURS UTILISATEURS (utile pour site web)
+========================================================
+definir une cle pour le nouveau compte (ici AmitexFFTP) la relier au compte github.
+sur machine pc_windows_ubuntu :
+cree le fichier .ssh/config
+Host github.com-amitexfftp
+    HostName github.com
+    User git
+    IdentityFile ~/.ssh/id_ed25519
+
+ci-dessous : pas sur que ce soit necessaire    
+	eval "$(ssh-agent -s)" 
+	ssh-add ~/.ssh/id_ed25519 
+
+clone avec le bon nom de serveur (defini dans .ssh/config) -> et du coup avec la bonne clé!
+	git clone git@github.com-amitexfftp:AmitexFFTP/AMITEX.git
+
+**************************************************************
+*                          ASTUCE POUR UTILISER git sur AIRAIN
+**************************************************************
+mkdir airain
+sshfs gelebart@airain.ccc.cea.fr:./ airain
+cd airain
+git clone git@gitlab.maisondelasimulation.fr:jderouil/amitex_fftp.git
+#ou  git pull, si on a choisit amitex_fftp pour répertoire_serveur
+
+!!!!!!!NE PAS OUBLIER :
+cd ..
+fusermount -u airain
+
+
+**************************************************************
+*                                                 AU DEMARRAGE
+**************************************************************
+
+POUR CREER UNE CLE SSH NECESSAIRE POUR L'UTILISATION DE GITLAB
+==============================================================
+ssh-keygen -t rsa -C "lionel.gelebart@cea.fr"
+cat ~/.ssh/id_rsa.pub
+
+Copier-coller la réponse de cette commande dans gitlab 
+(https://gitlab.maisondelasimulation.fr/profile/keys/new)
+
+POUR CLONER LA VERSION DU SERVEUR
+=================================
+git clone -v git@132.167.209.11:jderouil/amitex_fftp.git
+
+
+**************************************************************
+*                                  PROBLEME D'ACCES AU SERVEUR
+*
+[lgelebart@futuna3 amitex_fftp]$ git pull
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@    WARNING: REMOTE HOST IDENTIFICATION HAS CHANGED!     @
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+IT IS POSSIBLE THAT SOMEONE IS DOING SOMETHING NASTY!
+Someone could be eavesdropping on you right now (man-in-the-middle attack)!
+It is also possible that a host key has just been changed.
+The fingerprint for the ECDSA key sent by the remote host is
+9a:36:66:1e:04:f6:13:08:8a:b8:4a:dc:c2:22:f6:30.
+Please contact your system administrator.
+Add correct host key in /home/lgelebart/.ssh/known_hosts to get rid of this message.
+Offending ECDSA key in /home/lgelebart/.ssh/known_hosts:3
+ECDSA host key for 132.167.209.11 has changed and you have requested strict checking.
+Host key verification failed.
+fatal: Could not read from remote repository.
+ 
+Please make sure you have the correct access rights
+and the repository exists.
+
+
+--------- SOLUTION 1 :
+
+	ssh-keygen -f "${HOME}/.ssh/known_hosts" -R gitlab.maisondelasimulation.fr
+
+--------- SOLUTION 2 (si 1 ne marche pas) :
+	supprimer le fichier known_hosts qui sera reconstruit au gré des connexions)
+
+	mv .ssh/known_hosts .ssh/known_hosts.jour_mois_annee (on conserve une copie au cas où!)
+
+
+
+**************************************************************
+*                                    PROBLEME DE CONFIGURATION
+*
+OBSERVE 07/2019 sur machine du LEM3 (une lame d'un cluster)
+-----------------------------------------------------------
+genee@lame601:~/Sandbox$ git commit
+ 
+*** Veuillez me dire qui vous êtes.
+ 
+Lancez
+ 
+  git config --global user.email "Vous@exemple.com"
+  git config --global user.name "Votre Nom"
+ 
+pour régler l'identité par défaut de votre compte.
+Éliminez --global pour ne faire les réglages que dans ce dépôt.
+...
+
+=> git config --global xx xx : ne résoud pas le pb
+=> git config --local  xx xx : OK résoud le pb
+(pas vraiment compris le pourquoi)
+
+
+****************************************************************
+*                     SUITE A PB SECU MDS : message du 3/02/2022 
+*
+Les règles actuelles de hiérarchie des zones réseau et des fonctions des serveurs, interdisent désormais le protocole SSH depuis des postes utilisateurs vers ces 2 serveurs : il est impossible pour un firewall simple de distinguer un flux SSH user d’un flux SSH d’administration.
+Normalement cela devrait avoir un impact limité pour les utilisateurs : ceux qui ont des clones GIT en ssh devront modifier l’URL de référence du projet. C’est-à-dire passer une commande :
+
+git remote set-url origin https://gitlab.maisondelasimulation.fr/GROUPE/PROJET.git

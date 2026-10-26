@@ -1,0 +1,4 @@
+# Ignorer les fichiers xml recopies apres l'execution
+*.xml
+# Ignorer les fichiers vtk 
+*.vtk

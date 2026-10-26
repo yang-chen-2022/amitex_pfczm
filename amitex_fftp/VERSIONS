@@ -1,0 +1,423 @@
+VERSION 12.0.0
+	Same as version 11.2.0
+	Modifiy number because this version modifies AMITEX standard usage (especially the Makefile used with fortran behavior laws)
+VERSION 11.2.0
+	Dynamic version of AMITEX
+	FoX compiled with cmake
+	new compilation procedure (+ usefull amitex_fft-config tool)
+VERSION 11.1.0
+        Add RESTART
+	start porting towards nvfortran
+	MPI communicator different from MPI_COMM_WORLD
+	Fix crach with multiple grids
+	Add py4amitex tests
+VERSION 11.0.1
+	Correction bug diffusion (detecte si plusieurs pas de temps)
+	Modif install
+VERSION 11.0.0
+	ADAPTATION new 2decomp / possibilite d'utiliser les 2 librariries (old et new)
+	MODIF simu_mod : xstart, xend, xsize -> amx_start,amx_end, amx_size
+VERSION 10.2.1
+	AJOUT CAST3M pour validation CL non-perioidques (meca/thermique)
+VERSION 10.2.0
+	CORR BUG : 	chgt trajet de chargement en GDef
+				loi MFRONT gurtin (ne compile plus avec tfel > v4.0.0)
+				get_homogeneous_coeff
+				field_div,grad,fileter si Prow OU pcol = 1 : PB DECOMP_2D CORRIGE ICI A POSTERIORI
+	AJOUTS : 	SUBSTEPPING
+				fonctions field_mod (field_minmaxdetF, _minmax, _set_plane)
+				fonction algo_mod (optimize_scalar)
+				BEHAVIOR, option use_sig0, use_varint0 (pour passer sig ou sig0, varaint ou varint0 a umat)
+				amitex_case.sh : ajout cas polycrystal elastique anisotrope
+				Loi Cpt : elasaniso_eigs
+	REORG :		grid, Freq, initFreq... : deplacés de green_mod vers field_mod
+VERSION 10.1.0
+	MODIF possibilite sortie sur Nitermax sans plantage + objet info_NL_base (utilisable dans fonction utilisateur)
+	MODIF field_grad et field_div : ajout option BC differents de periodiques
+	AJOUT introduction de Def_star (a finaliser, valider)
+	AJOUT fonction field_def2depF (a valider)
+	AJOUT "Name" dans mate.xml pour Materiaux, Coeff, VI
+	AJOUT comportement elasaniso_GD
+	AJOUTS fonction "extension" : get_minmax_coeff, get_minmax_coeff_function
+	SUPPRESSION Nloc implicit, jamais utilisé, posait pb lors d'appel unpa_NL_base dans user_nloc
+	CORRECTIONS mineures (dont pb fonction spread avec intel)
+VERSION 10.0.0
+	MODIF 2DECOMP_FFT pour MULTIGRID
+VERSION 9.1.1
+	COMMIT JUSTE AVANT MODIF 2decomp_fft pour multigrid et passage V10.0.0
+	MODIFS pour cohabitation modeles NLOC et Voxels composites
+VERSION 9.1.0
+	CORRECTION BUGS lecture vtk, option -coeff2print, plantages intel-oneapi, prise en compte Fvol
+	MODIFS UTILISATEUR interface gradgradU
+	MODIF resolution_NL_base : posssiblite de shunter initialisation (utile AME)
+	MODIF behavior : mecanisme d'appel a loi "etendue" extension 'ext_law' (utile Phase Field)
+	AJOUTS field_filter(F), field_div(F), field_grad(F)
+	       lois themique
+	AJOUT DeformedShaep : sortie de variables internes
+	AJOUT Validation CAST3M ave EF  Integration reduite
+VERSION 9.0.0
+	MISE EN PLACE D'UN OBJET "SIMULATION" ET DE POINTEURS ASSOCIES
+	ADAPTATION DES MODELES DE CHAMP DE PASE AU "FRAMEWORK NON-LOCAL"
+        ATTENTION : PB avec intel15-impi5 (cas fissure1proc et scalabilite 16 nouds) 
+                   MAIS OK avec intel17/ompi202 sur Cobalt
+	OK pour differents gcc/openMPI : Ubuntu16.04(gcc540/MPI1.10.2)->20.04 (gcc930-MPI403))
+
+VERSION 8.18.3
+	OPTIMISATION DIFFERENCIEE 2decomp/amitex -> corrige pb ubuntu20.04
+        Corrections user_Kochman(2) (pb actualisation et ecriture vtk)
+
+VERSION 8.18.2
+	MODIF LECTURE VOXEL COMPOSITE
+	CORRECTION BUG lecture fichier vtk (si 1er octet des donnees vaut 10 (=retour chariot)
+	
+VERSION 8.18.1
+	MODIF INSTALL : possibilite d'avoir FC autre que "ifort" ou "gfortran"
+
+VERSION 8.18.0
+	AJOUT User interruption
+	MODIF cas-tests polyxCC_def_imp (reduction)
+	AJOUT cas-tests interruption
+
+07/2020 : CREATION BRANCHE 8.17.X : uniquement correction de bug
+-----------------------------------
+
+VERSION 8.17.2
+	AJOUT option modACV dans algo.xml
+	+corrections mineures
+  
+VERSION 8.17.1
+	CORRECTION ANOMALIE sortie fichier .zstd affectee par <Output_cell Number=""/>
+
+VERSION 8.17.0
+	AJOUT chargements flexion/torsion pour beam/plate
+	CORRECTION BUG plantage avec materiau manquant (et donnees par zone lues dans xml)
+
+VERSION 8.16.3
+	MODIF MINEURE : modif (material).xml avec 'Lib=""' + oubli modif dans read_mat_composite dans la 8.16.2
+
+VERSION 8.16.2
+	MODIF USER : 'Lib=""' pour les comportements natifs (necessite export AMITEX_PATH=path_amitex)
+
+VERSION 8.16.1
+	CORRECTION BUG GCC 9.2.0 + bug initialisation si 2 variables internes vtk 
+
+VERSION 8.16.0       -     ATTENTION
+	CORRECTION BUG INTEL19 (fonction remplir_buffer dans sortie_std_mod.f90) bug non compris...
+
+VERSION 8.15.0
+	CORRECTION BUG sortie_std_mod
+	AJOUTS USER : initialisation variable interne par fichier vtk
+			option -varint2print (pour verification des donnees)
+	MODIF USER : uniformisation sorties vtk (1 champ/composante)
+	MODIF USER : deformedShape, modif ligne de commande voir -help
+	AJOUT interface utilisateur param_algo : initialisation de l'algo iteratif :(previous ou default)
+	MODIF MINEURES : pour compatibilite mfront/cast3m umat, option -help, logo,
+	AJOUTS DEVELOPPEURS : fonctions read_field_vtk et print_field_vtk
+				libAmitex2 pour utiliser séparément d'"amitex_fftp"
+ 
+VERSION 8.14.0
+	CORRECTION PB ecriture vtk
+	+ AJOUTS compilation avec MKL et T3PIO
+
+VERSION 8.13.1	
+	AJOUT option amitex_fftp (choix decomposition 2decomp) 
+	+TOOL/optim_2decomp (pour optimiser la decompsition)
+
+VERSION 8.13.0
+	CORRECTION DIFFUSION (eval_criteresD a l'identique de la meca)
+	+ MODIFICATION INTERFACE UTILISATEUR : 'gradient de deplacement complet' en HPP
+        + SIMPLIFICATIONS gurtinSSnloc 
+
+VERSION 8.12.0
+	CORRECTION ANOMALIE (chargement en temperature et param externe)
+        + MENAGE gcc-warning + MODIF comportements (abandon du 'use 2decomp' inutile)
+
+VERSION 8.11.2
+	CORRECTION bug initialisation voxels composites (cas peu frequent : zone d'interphase d'un materiau absent du pinceau 0) 
+
+VERSION 8.11.1
+	MODIF non-local interface utilisateur
+	AJOUT, REMISE A PLAT et AMELIORATION de user_Miehe3
+
+VERSION 8.11.0
+	AJOUT FONCTION "NON-LOCAL" : introduction d'un modele utilisateur externe
+
+VERSION 8.10.0
+	CORRECTION BUG (frequence rare) Allocation tableau vide de variable interne pour materiau absent du pinceau 
+	CORRECTION Calcul du critere en deformation moyenne
+
+VERSION 8.9.0
+	CORRECTION LENTEUR (si beaucoup de zone) : modif de l'appel a MPI_ALLREDUCE dans read_geom et read_geom_composite
+	+ NON-LOCAL : Gurtin_ss_3 et Gurtin_ss_4 (A VERIFIER : 3 et 4 devraient donner des résultats identiques)
+
+VERSION 8.8.0
+        CORRECTION IMPORTANTE - bug observe a la lecture de fichiers bin (lorsqu'un materiau est absent d'un pinceau)
+        CORRECTION BUG NON-LOCAL -> segfault avec intel15 (contournement de 'reshape' dans Assemble_Field_from_VarInt et Assign_VarInt_from_Field) 
+
+VERSION 8.7.2
+        CORRECTIONS MINEURES VERSIONS 'USER' (propagation modif PARAM_EXTRACT)
+
+VERSION 8.7.1 -- NE PAS UTILISER AVEC LES VERSIONS USER
+        AJOUT <Output_cell Number"xx"/> pour redure sortie .std et .msdt (pour ddd notamment)
+        ENTRETIEN structure PARAM_EXTRACT, beaucoup de modifs... ATTENTION
+        CORRECTION BUG MINEUR  write_header_vtk (passage I5 -> I6 pour nx, ny,nz)
+
+VERSION 8.7.0
+        AJOUT USER CAHN HILLIARD
+        AJOUT <Convergence_Criterion_Compatibility Value=""/> dans algo.xml
+
+VERSION 8.6.0
+        MODIF USAGE USER : possibilite d'utiliser l'algo STANDARD avec des fonction user avant et apres unpas
+        +MODIFS CONVERGENCE FORCEE
+        +CORRECTIONS (initilisation nrank avant 2decomp!!  et isPresent)
+        +AJOUTS (option '-DX -DY -DZ', option 'light' de install, 
+        +ENTRETIEN
+
+VERSION 8.5.2
+        ANNULATION (commentaires) des modifications sur la CONVERGENCE FORCEE de la version 8.5.1 
+
+VERSION 8.5.1 -- NE PAS UTILISER !!
+        MODIF CONVERGENCE FORCEE (on retient la meilleure solution) + lecture Nitermax dans param_algo.xml
+
+VERSION 8.5.0
+        MODIFS + CORRECTIONS "NON-LOCAL" 
+        AJOUT possibilite calcul HPP avec prise en compte gradient deplacement non-symetrique 
+        AJOUT user_ddd_mm
+
+VERSION 8.4.2
+	MODIF ARCHITECTURE for USER : application aux algo de Yang Chen (Miehe) et Julien Boisse (Kochman) 
+        + CORRECTIONS et AJOUTS MINEURS
+
+VERSION 8.4.1
+	CORRECTION BUG material_mod, occurence rare: utilisation loi GDEF avec calcul HPP 
+              -> notation Voigt non prise en compte pour evaluer Gradient Transfo a partir de Def (symetrique) 
+
+VERSION 8.4.0
+	MODIF ARCHITECTURE for USER + copy XML files +  initialisation PNEWDT (umat variable) for MFRONT
+
+VERSION 8.3.0
+	MODIF LECTURE/ECRITURE BINAIRE - endianness prise en compte APRES MPI_IO (au lieu d'utiliser un type MPI dedie)
+
+VERSION 8.2.1
+	MODIF MINEURE "install" (permet de modifier le nom du repertoire amitex_fftp avant de lancer install)
+
+VERSION 8.2.0
+	MODIF GDEF : milieu C0 symetrique par defaut + option C0sym pour revenir a C0 non-symmetrique
+
+VERSION 8.1.0
+	MISE EN PLACE D'UN ESPACE DE DEVELOPPEMENT "USERS_SRC"
+
+VERSION 8.0.0
+	PRISE EN COMPTE GENERIQUE DE MODELES NON-LOCAUX
+        + introduction de modeles de champs de phases specifiques (travaux Yang Chen et Julien Boisse)
+
+VERSION 7.0.0
+	NOUVELLE FONCTION sortie_std (utilisation buffer + prise en compte des voxels composites)
+
+VERSION 6.6.4
+	CORRECTION BUG POTENTIEL (entiers de l'interface umat sur 8bytes)
+
+VERSION 6.6.3
+	ANNULE ET REMPLACE v6.6.2
+	correction coquille dans install
+
+VERSION 6.6.2 - NE PAS INSTALLER (coquille dans install)
+	AJUSTEMENT INSTALLATION (clarification des liens vers FFTW, notamment si installation dans /usr/lib64)
+
+VERSION 6.6.1
+	MODIFICATION INSTALLATION (simplification, executable dans libAmitex/bin)
+
+VERSION 6.6.0
+	ENTRETIEN avec MODIFS IMPORTANTES pour le developpeur 
+        => creatoin d'une fonction unpas_NL_base, utilisable pour les couplages champ de phase, le non-local etc...
+
+VERSION 6.5.2
+        MISE A JOUR FOX 
+
+VERSION 6.5.1
+	MERGE des travaux "en l'etat" sur les voxels composites REUSS pour
+              developpements ulterieurs par Jeremy Duverge (stage) 
+              utilisation par Romain Chariere
+
+VERSION 6.5.0
+	ENTRETIEN avec MODIFS IMPORTANTES pour le developpeur 
+        (deplacement des declarations dans les modules)
+		
+VERSION 6.4.0
+	Modification IMPORTANTE :  
+		noms des fichiers de sortie vtk (pour utilisation paraview plus confortable)
+		=> modification des arguments deformedShape 
+	Modifications autres : 
+		materiaux composites dans fichier .log
+		sortie vtk si (nb iteration max atteint), uniquement pour des calculs sans Convergence Forcee 
+
+VERSION 6.3.0
+	Ajout :		Convergence Forcee
+	Corrections :	Bugs detectes (plantages aleatoires) a l'execution des cas-tests
+			     avec compilation "gfortran -g -fcheck=all"
+			Openmp : compilation intel ok (+validation meca HPP et diffusion)
+				-> reste encore tres exploratoire
+	MAJ des cas-tests (suite à la correction des criteres v6.0.0
+
+VERSION 6.2.0
+	Ajout :         introduction de "zones" d'interphase
+	Correction : 	prise en compte de la variation de volume des voxels pour le calcul des 
+			contraintes de Cauchy moyennes
+
+VERSION 6.1.0		(info : 47353 lignes)
+	Entretien : traitement des warning de gcc -Wall
+
+VERSION 6.0.2
+	Correction bug (quasi nul) : plantage seg. fault observe sur le compte de Y.Chen (pas sur le mien!) 
+
+VERSION 6.0.1
+	Correction bug (effet mineur) : subsistait une petite erreur dans les criteres (specifique aux plans ix=1 et nx/2+1)
+
+VERSION 6.0.0
+	CORRECTION BUG : le calcul des criteres de convergence etait faux!!!
+
+VERSION 5.4.1
+	Correction bug : load%DirStress2 non initialise (plantages aleatoires)    
+
+VERSION 5.4.0
+	Ajout : Chargement a multiaxialite de contrainte imposee et pilotage sur une composante de deformation
+	        En grande def : possiblite d'imposer la multixialite soit sur PK1 soit sur Cauchy
+	Ajout : Critere sur la contrainte Macro different du critere sur l'equilibre
+
+VERSION 5.3.0
+	Modification du traitement des dimensions de grilles PAIRES (devient une option)
+	Correction bug lorsque l'ACV n'est pas effective (eviter 2 champs identiques dans ACT3_x)
+
+VERSION 5.2.1
+	Correction bug sortie_std (sortie zstd des variables internes)
+	Correction bug error_mod (amitex_abort en level 2 ne quitte pas programme)
+	MAJ cas test laminate_polyx_elasiso (necessaire pour modif seuil sur Frac Vol dans umatLaminate par A.Marano)
+
+VERSION 5.2.0
+	Ameliorations algo voxels composites (2nd merge travaux d'Aldo Marano)
+	Suppression resolution_NL_user (penible a maintenir et sans grand interet)
+
+VERSION 5.1.2
+	Correction bug (lecture coefficient de valeur "-1" impossible)
+	Meilleure compatibilité umat (on donne du sens a KSTEP et KINC)
+
+VERSION 5.1.1
+	Ajout d'une option pour sortir un coeff (vtk) sans lancer le calcul (pour verification) 
+
+VERSION 5.1.0
+	Traitement efficace du cas "materiau unique a proprietes constantes par voxel"
+	Creation d'un module generique "field_mod" de fonctions definies sur des champs
+	Correction de bug en "diffusion" :
+		variables relatives aux "variables internes" : acces uniquement en mécanique
+	Acceleration du comportement en gnu : option -ffast-math (accessible depuis install)
+
+VERSION 5.0.1
+	Correction de bugs detectes a la compilation avec ifort / openmpi
+
+VERSION 5.0.0
+	Prise en compte des voxels composites
+
+VERSION 4.1.0
+	Version avant prise en compte des voxels composites
+	Suppression des pointeurs pour "reshaper" les champs
+	Positionnement de read_geom.f90 sous src : NE PLUS TOUCHER	
+
+VERSION 4.0.1
+	Correction bug "sortie" en diffusion
+
+VERSION 4.0.0
+	Prise en compte de la diffusion
+	2 bugs corrigés (green_mod, evaluation de critere + deformed_shape)
+
+VERSION 3.2.0
+    	Prise en compte de la taille des voxels
+    	Introduction structure Grid
+
+VERSION 3.1.0
+	correction bug (plantage) avec openmpi > 1.6.5 (ajouts de MPI_barrier dans sortie_std)
+	=> prevoir une refonte de sortie_std (trop de communications MPI)
+
+VERSION 3.0.0
+	Modification de l'appel au loi de comportement via une librairie dynamique
+	=> Meilleure compatibilité avec mfront
+
+VERSION 2.3.5
+	Correction bug sur la sortie standard des messages avec gcc (pb de file unit)	
+	Introduction d'un comportement élastique anisotrope
+
+VERSION 2.3.4
+        Version fixée pour envoi 1er utilisateur extérieur (Yajun Cao/LML) le 23/02/2016
+        Tests sur différents clusters (et différents couples compilateur/MPI)
+	Correction bug mineur (sortie_std)
+
+VERSION 2.3.3
+        AJOUT DU FICHIER DE LICENCE
+
+VERSION 2.3.2
+        Corrections de bug sur les entrées (lecture entête vtk, lecture de réels)
+
+VERSION 2.3.1
+        Ajout d'une fonction resolution_NL_user et des fonctionnalités associées 
+        (compilation, validation)
+        => NE PLUS TOUCHER (sauf détection de bug) A resolution_NL_base!!
+
+VERSION 2.3.0
+	Ajout de la fonction de post-traitement defomedShape (maillage déformé)
+	Version stabilisée du code au départ de Franck OUAKI 	
+
+VERSION 2.2.0
+	Correction du cas pair en grande transformation (engendrait une bifurcation dans le calcul)
+	Profonde modification des sorties (et entrées correspondantes)
+
+VERSION 2.1.0
+        Prise en compte de la fonction ACT3 utilisée dans CAST3M
+        Utilisation de -gamma0*Tau au lieu de epsilon-gamma0*sigma (compatibilité assurée)
+	Possibilité de lire des fichiers de coefficients contenant plus de ligne que le nombre de zone du fichier vtk 
+
+VERSION 2.0.0
+	Prise en compte des grandes transformations et réorganisation du code
+
+VERSION 1.6.1
+	Ajout du multi-treading openmp 
+
+VERSION 1.5.1
+	Modifications mineures (maj cas-test thermo-elastique)
+
+VERSION 1.5.0
+	Prise en compte de chargements externes (Température ou autre)
+
+VERSION 1.4.0
+	Mise "au carré" des critères de sortie de l'algorithme
+
+VERSION 1.3.0 :
+	modification de la sortie de boucle itérative
+	quelques corrections mineures sur les calculs de critère et l'actualisation d'Eimp (updateEimp)
+
+VERSION 1.2.1 :
+	correction ligne trop longue (bug à la compilation)
+
+VERSION 1.2.0 :
+	ajout d'un critère sur les grandeurs moyennes
+
+VERSION 1.1.1 : 
+	correction du calcul de la normalisation de la contrainte (manquait partie imaginaire)
+
+VERSION 1.1.0 : taggué pour envoi F.Bernachy & S. Chupin le 10/02/2015
+	correction de accélération de convergence en parallèle
+	introduction du calcul eps=-gamma0*tau+E toutes les 10 itérations (assure la compatibilité)
+	changement de calcul du critère de convergence (normalisation permettant d'imposer une contrainte moy.nulle)
+	ajout d'un cas-test fissure
+
+VERSION 1.0.2 :
+	correction lecture de nom de fichiers trop longs
+	tagguée pour install maldives
+
+
+VERSION 1.0.1 : 
+	idem + légère correction dans l écriture du .log
+
+
+VERSIONS 1.0.0 : 
+	tagguée pour envoi à S.Chupin
+	Algo de base + ACV en déformation, pilotage mixte, HPP 
+

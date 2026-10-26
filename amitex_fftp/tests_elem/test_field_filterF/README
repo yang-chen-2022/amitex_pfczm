@@ -1,0 +1,6 @@
+VALIDATION DES FILTRES "MOYENNE" APPLIQUES 
+- dans l'espace de Fourier
+- dans l'espace reel
+
+On constate qu'il est BCP moins couteux d'appliquer le filtre dans l'espace reel.
+

@@ -1,0 +1,56 @@
+Dans algo_function_mod.f90: act3 = adaptation de act3.eso par Franck Ouaki ~2015
+================================================================================
+ATTENTION : F. Ouaki -> seule recupération de la procédure à 4 champs (adaptation a 3 et 2 champs : TODO si necessaire)
+
+diff 13-14 : pas de difference hormis des 'blancs' => UTILISER 2014 COMME REFERENCE
+diff 14-15 : no
+diff 15-16 : no 
+diff 16-17 : no
+diff 17-18 : no
+diff 18-19 : yes
+    dans ACV 4 champs:
+    *  normalisation pour ameliorer la precision
+       les iteres successives pouvant diminer pas mal si on converge
+    *  xpetit -> xref
+    *  modif des tests (differents suite à normalisation + xref)
+    *  ajout tests xl >1 : goto 2000 pas d'acv
+    *  ajout 
+      if (a3.lt.a1*xref.or.e2.lt.e1*xref) then
+      write (6,*) ' act3 operateur secant non positif'
+       goto 2000
+      endif
+    *  ajout tests xl >1 : goto 2100 pas d'acv
+    *  ajout
+      if (a2.lt.a1*xref) then
+       write (6,*) ' act3 operateur secant non positif'
+       goto 2100
+      endif
+    *  decommente CALL ERREUR(859)
+    *  ajout tests xl >1 : goto 1000 pas d'acv
+
+diff 19-20 : yes
+    dans ACV 4 champs:
+	*  commente goto 2000, goto 2100, goto 1000 associes aux ajouts (2019) "tests xl >1 , pas d'acv"
+
+diff 20-21 : yes - un peu (aucune consequence sur act3-amitex)
+
+
+BILAN SUIVI MODIF (pour amitex, dans ACV 4 champs) ENTRE 2013 et 2021 => meld 2014 - 2020
+	questions :
+	1 - pourquoi dans les tests : abs(E2) devient E2; abs(A3) devient A3 MAIS abs(A2) reste abs(A2)
+	
+	2 - le test ci-dessous est-il vraiment utile, 
+	  if (a3.lt.a1*xref.or.e2.lt.e1*xref) then
+	il arrive après les tests
+	      IF (E2 .LE. e1*xref) THEN
+	      IF (A3 .LE. a1*xref) THEN
+
+    3 - de meme,
+    le test
+        if (a2.lt.a1*xref)
+    arrive apres un test
+        IF (A2 .LE. A1*xref)
+    
+    4 -  Interêt de  :    IF (ABS(A1) .LT. xref ) GOTO 1000    avec ici A=1d0
+                          IF (ABS(E1) .LT. xref) GOTO 2100     avec ici E1 = 1d0
+    

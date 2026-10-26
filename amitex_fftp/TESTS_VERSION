@@ -1,0 +1,395 @@
+TESTS DE BON FONCTIONNEMENT DU CODE SUR DIFFERENTES MACHINES/COMPILATEURS
+RESULTATS DES TESTS DE VALIDATION
+*************************************************************************
+
+REMARQUE :      tests sur plusieurs noeuds pour vérifier le resultat
+                MAIS, calculs trop petits pour bénéficier du //isme distrbués	
+                Grosse partie du temps dans les 3 cas :
+			polyxCC_def_imp,    	(35% - v6.0.0)
+			polyxGD_traction,	(20% - v6.0.0)
+			polyxGD_triax2p5_cauchy	(7% - v6.0.0)
+
+                Effet choix compilo : 
+			bien limite sur maldives depuis l'utilisation de --ffast-math de gcc
+			on retrouve un fort effet depuis marquises (test options gcc pour skylake => infructueux)
+
+TESTS DE REF SUR COBALT dans T2D2C45_150-1772-vx.x.x : 
+		dans SIMULATIONS/YANG
+		resultat dans $CCCSCRATCH
+		=> PUIS mv dans $CCCWORKDIR (on pourra supprimer les vtk si necessaire)
+
+                SUR COBALTversion 8.3.0 (et/ou config cobalt le 10/1/19) : 
+				IMPI ~ DEFAULT (openmpi)  					:-)
+				plus de probleme lors des lectures/ecritures sur le scratch  	:-)
+				copyXML TRES LONGUE  -> execute_command_line ameliore
+	
+                         MAIS : COPY XML files  ET  READ HEADINGS -> bcp trop longs!!
+
+VERSION 8.4.0
+14/1/2019	modif copyXML + architecture pour intro user algo
+========================================================================
+
+	MARQUISES 28 procs  (node3)   - fftw install standard
+	   intel15-impi5					OK	199s
+	   gcc810-openmpi/3.1.0/gcc-810				OK	345s	
+	   
+
+	COBALT - 28c - broadwell
+	   defaut (intel17/openmpi204)				OK	359s
+
+	COBALT : GROS CALCUL : SIMULATIONS/YANG -> script T2D2C45_150-1772-v8.3.1-default(broadwell - 1568proc) 
+                                                   sauvegarde dans WORKDIR/RESULTATS/YANG/
+	    defaut :  20min 30s!! 
+                      	vs 25min avec v8.3.0 et pb de copy fichiers xml
+			C MIEUX MAIS : 	53s pour COPY XML files !!!
+					30s pour READ HEADINGS vtk files !!!
+
+VERSION 8.3.0
+10/1/2019
+========================================================================
+
+	COBALT - 28c - broadwell
+	   defaut (intel17/openmpi204)				OK	364s	(408s v7.0.0)
+	   intelmpi par défaut (18)				OK	285s	(330s v7.0.0)
+
+	   Remarque : 
+		Calculs SOTERIA (Voronoi  sur 10 noeuds VoronoiN9r7) : perf "defaut" ~ perf "impi"
+
+	COBALT : GROS CALCUL : SIMULATIONS/YANG -> T2D2C45_150-1772-v8.3.0-xxx (broadwell - 1568proc) => 25min!!
+			65 iterations
+	   default	init			442s  (7min!!)
+			global (hors init)	1056s 
+			total			1498s (25min)
+			dont ecriture		600s  (300s passes dans sortie_std?!)
+			dont ecriture VTK	300s  (25s / champ vtk -> 5min total, en accord ll sur fichiers vtk)
+			dont hors VTK		756s  (11.6s / iteration, en accord avec les temps pour 10 iterations)
+
+	   impi		init			434s  (7min!!)
+			global (hors init)	1059s 
+			total			1493s (25min)
+			dont ecriture		363s  (300s passes dans sortie_std?!)
+			dont ecriture VTK	181s  (15s / champ vtk -> 5min total, en accord ll sur fichiers vtk)
+			dont hors-VTK		878s  (13.5s / iteration, en accord avec les temps pour 10 iterations)
+
+		!---------------------------------------------------------------------------------------
+		!	0 - facteur x2 "temps total ecriture" et "temps ecriture VTK" -> bizarre (le "temps ecriture VTK" est bon)
+		!	1 - DEFAULT ~ IMPI !!  => CHOISIR DEFAULT
+		!		1 - a  impi : ecriture + rapide des vtk (25s/champ en openmpi vs 15s/champ en impi)
+		!		1 - b  openmpi : fft/ifft plus rapides (278s+279s vs 328s+333s)
+		!	2 - temps initialisation AVANT 2decomp TRES GRAND : 7min vs 1min (v6.0.1 31/8/2017)!!
+		!		=> PB = copyXML -> utiliser EXECUTE_COMMAND_LINE résoud le pb
+		!---------------------------------------------------------------------------------------
+
+
+VERSION 8.2.0
+13/12/2018
+========================================================================
+C0 SYMETRIQUE POUR LES CAS GDEF
+
+	Marquises 28 procs  (node3)   - fftw install standard
+	   intel15-impi5					OK	202s
+	   gcc810-openmpi/3.1.0/gcc-810				OK	346s	
+
+        Maldives 12 procs (q256G)
+           intel15-impi5					OK	654s (attention q256G=noeud+récent)
+
+	Poincare 16 procs
+           gcc73-openmpi213					OK	702s
+           intel15-impi5					OK	626s
+
+
+VERSION 7.0.0			
+07/08/2018			
+========================================================================
+AJOUT SORTIE STD et SORTIE_STD_COMPOSITE : sur les deux machines les perf sont un peu meilleures
+
+
+	Marquises 28 procs  (node3)   - fftw install standard
+	   intel15-impi5					OK 	221s
+	   gcc810-openmpi/3.1.0/gcc-810				~OK	373s
+		avec options mpirun OMNIPATH			~OK	341s
+
+	Cobalt 28 procs
+	   mpi par defaut (2.0.1)				OK	408s	(475s - v6.2.0+3commits)
+	   intel mpi						OK	330s	(425s - v6.2.0+3commits)
+
+	Futuna3
+	   intel15-impi5					OK 	236s
+	   gcc485-openmpi201-fftw(rpm)				OK	336s
+
+
+
+VERSION 6.6.2 
+2/08/2018
+========================================================================
+petite modif installation
+	
+	Marquises 28 procs  (node3)   - fftw install standard
+	   intel15-impi5					OK 	241s
+	   gcc810-openmpi/3.1.0/gcc-810				~OK	386s
+
+	Marquises 28 procs  (node3)   - fftw install standard (avec options mpirun OMNIPATH)
+	   gcc810-openmpi/3.1.0/gcc-810				~OK	353s
+
+        Maldives 12 procs
+           intel15-impi5					OK	1080s
+	   gcc482-openmpi18					OK	1265s (laminate_polyx_elasiso pass...)
+
+
+VERSION 6.6.0 + modif installation (=> executable dans bin!) - commit 78cb285f7f
+30/07/2018
+========================================================================
+modif : installation
+
+     Marquises 28 proc
+        intel15-impi5-ftw/3.3.8/gcc-4.8.5			OK	259s 
+        gcc810-openmpi/3.1.0/gcc-810-fftw/3.3.8/gcc-4.8.5	~OK	416s (MAIS plantage laminate_polyx_elasiso)
+
+     Marquises 12 proc
+	intel-impi5       					OK      1074s
+
+     Futuna3
+	gcc485-openmpi201-fftw(rpm)				OK	347s
+		
+
+VERSION 6.6.0 + nouvelle sortie_std (branche J.Duverge) - commit 3f2a00bcd6d9f5c
+20/07/2018
+========================================================================
+modif : re-ecriture sortie_std
+     Marquises 28 proc
+        intel15-impi5-ftw/3.3.8/gcc-4.8.5			OK	239s (vs 246s)
+        gcc810-openmpi/3.1.0/gcc-810-fftw/3.3.8/gcc-4.8.5	~OK	400s (vs 410s) (MAIS plantage laminate_polyx_elasiso)
+
+
+VERSION 6.6.0 - 17/7/2018  : OK stable vs v651
+==========================
+modif : mise en place unpas_NL_base
+     Marquises 28 proc
+        intel15-impi5-ftw/3.3.8/gcc-4.8.5			OK	261s
+        gcc485-openmpi/3.1.0/gcc-4.8.5-fftw/3.3.8/gcc-4.8.5	OK	436s	
+        gcc810-openmpi/3.1.0/gcc-810-fftw/3.3.8/gcc-4.8.5	OK	412s	(MAIS plantage laminate_polyx_elasiso)
+
+VERSION 6.5.1 + 1 commit (9ffe)
+===============================
+     Marquises 28 proc
+       1 noeud - 28 coeurs
+        gcc485 - openmpi/3.1.0/gcc-4.8.5 - fftw/3.3.8/gcc-4.8.5                                         439s
+        gcc810 - openmpi/3.1.0/gcc-810 - fftw/3.3.8/gcc-4.8.5                                           412s / 411s
+        gcc810 - openmpi/3.1.0/gcc-810 - fftw/3.3.8/gcc-4.8.5                           sur /tmp        395s
+        intel/15.0.0.090 -  openmpi/3.1.0/intel-15.0.0.090  - fftw/3.3.8/gcc-4.8.5      sur /tmp        308s
+        intel/15.0.0.090 -  impi/5.0.1.035  - fftw/3.3.8/gcc-4.8.5                                      265s / 259s
+        intel/15.0.0.090 -  impi/5.0.1.035  - fftw/3.3.8/gcc-4.8.5                      sur /tmp        246s
+
+       1 noeud - 12 coeurs
+        gcc810 - openmpi/3.1.0/gcc-810 - fftw/3.3.8/gcc-4.8.5                                           704s
+        intel/15.0.0.090 -  impi/5.0.1.035  - fftw/3.3.8/gcc-4.8.5                      sur /tmp        448s
+
+
+       2 noeuds - 56 coeurs (linelas_continuous plante, trop petit)
+        intel/15.0.0.090 -  impi/5.0.1.035  - fftw/3.3.8/gcc-4.8.5                                      341s
+
+
+VERSION 6.2.0 +3commits COMMIT commit 5291cb8
+==============================================
+     Maldives 12 proc
+        gcc482-openmpi18        OK      1268s
+        intel-impi5       	OK      1084s
+     Cobalt 28 proc
+        default			OK	475s 
+	intel2017-impi2018	OK	425s 
+
+
+VERSION 6.2.0 :
+===============
+     Maldives 12 proc
+        gcc482-openmpi18        OK      1262s
+        intel-impi5       	OK      1079s
+
+
+COMMIT 19b969 "CHECK LG DES DEVELOPPEMENTS d'ALDO"
+==================================================
+Ajout de zones d'"interphase" (zone non presente sous forme de voxel "homogene")
+
+     Maldives 12 proc
+        gcc482-openmpi18        OK      1270s
+              intel-impi5       OK      1083s
+
+
+VERSION 6.1.0 :
+===============
+       "Entretien" : traitement des Warnings -> nombreuses modifications
+	
+CAS TESTS DE VALIDATION
+
+     Futuna3 24proc - gcc485 openmpi 2.01
+		OK	1938s (18/10/17) INTERACTION 1 AUTRE PROCESS gnome non tue !!!!!!!
+		OK	320s   (apres kill du process gnome!!!)
+
+     Maldives 12 proc
+        gcc482-openmpi18        OK      1270s
+              intel-impi5       OK      1083s
+              Avec intel OU gcc : test.log IDENTIQUES vs v6.0.1 (ecart < 10-15 sur critere deformation)
+     Cobalt 
+        INTELMPI
+	intel16+impi5	:    28 proc - 371s (6.2min)	ok
+	intel16+impi5	:    84 proc - 274s (4.5min)	ok (plantage lin_elas_continuous = pb prow,pcol ok) 
+
+        MPI par defaut
+        intel16+openmpi188 : 28proc -439s		ok -mais moins efficace que impi
+	intel16+openmpi188 : 84proc -349s		ok -mais moins efficace que impi
+
+     Poincare
+        intel15+impi5   : 16 proc - 759s		ok
+
+COBALT : GROS CALCUL elastique (these Yang CHEN) T2D2C45_150-1772 
+---------------------------------
+
+        => INTELMPI / opemmpi : 	equivalent pour la partie "calcul"
+	=> openmpi 	   :    ecriture vtk TRES LONGUE (facteur 6 vs intelMPI)
+
+	resultats:
+        ----------
+	INTELMPI + sortie_std shuntée
+	intel(default=16) - impi51	:               ok (resultat rigoureusement identique v6.0.1)
+                                                        22min
+     
+	MPI default + sortie_std NON shuntée  : 
+	intel(default=16) + MPI (defaut=openmpi188) :   ok temps de "calcul"
+                                                        PB ECRITURE VTK TRES LONG
+                                                        1h23!!!
+	
+	MPI default + sortie_std shuntée :              ok 1h25 => IDEM sortie_std shuntée ou non
+	intel(default=16) + MPI (default=openmpi188) :  => PB VIENT DE ECVRITURE VTK AVEC openmpi/default
+							=> 6min/champ au lieu de moins de 1min!!
+
+	Meme calcul relance utilisation de mpiprofile/openmpi/big_collective_io : PAS MIEUX (1h25!!)
+
+
+VERSION 5.4.1
+==============
+	tests validation
+	futuna3	gcc485 openmpi 2.01
+		(15/06/17)	OK	205s	
+		(19/10/17)	OK	200s
+
+VERSION 6.0.1 :
+===============
+	Petite correction bug sur critere
+	1 iteration de plus sur deux tests (vs v6.0.0) et 6 de moins sur essai_fissure
+	maldives	intel15+impi5		: 12 proc - 
+	cobalt		intel16+impi5		: 28 proc - 7'
+        
+	GROS CALCULS YANG : 	calcul 1847x1847x1623 : c_new / c_old ~ 46	sqrt(Ntot)/Ndmax = 40.3
+				calcul 1847x1847x1105 : c_new / c_old ~ 38.8	sqrt(Ntot)/Ndmax = 33.2
+				calcul 1847x1847x1105 : c_new / c_old ~ 36.6	sqrt(Ntot)/Ndmax = 32.4
+				
+	A CONFIRMER : C_new / Cold ~ sqrt(Ntot)/Ndmax
+
+
+VERSION 6.0.0 :
+===============
+MODIFICATION CRITERE DE CONVERGENCE
+acceleration --fast-math en gcc
+divers ajouts de fonctionnalites et cas-test
+
+	GROS POINT POSITIF : en weak-scaling periodique, on obtient EXACTEMENT la meme valeur du critere pour 1 ou 6^3 cellules
+
+	GROS CALCUL YANG (fortement heterogene) : T2D2C45_150_1254 (Cobalt) 
+		AVANT : convergence en 17 iterations 
+		APRES : convergence en 65 iterations crit_new ~ 38.8 critere_old !!!
+		
+
+
+	maldives	intel15+impi5		: 12 proc - 18'
+			gnu482+openmpi1.8.1	: 12 proc - 21'
+	cobalt		intel16+impi5		: 28 proc - 6.4'
+	poincare :	intel15+intelMPI5.0.1 	: 16 proc - 12.5'
+
+Augmentation du nbre d'iterations suite a la modif du critere
+-------------------------------------------------------------
+linelas_continuous           ERROR (err_sig:  0.61099786D-06, err_def:  0.15114472D-06)    ERROR (Ref:    7, res:    8)
+laminate_polyx_elasiso       ERROR (err_sig:  0.14908978D-04, err_def:  0.20504896D-04)    ERROR (Ref:   28, res:   46)
+polyx_elasiso                ERROR (err_sig:  0.77726435D-05, err_def:  0.28742083D-04)    ERROR (Ref:   28, res:   43)
+diffusion_fluximp               OK (err_sig:  0.00000000D+00, err_def:  0.00000000D+00)       OK (Ref:   13, res:   13)
+diffusion_gradQimp              OK (err_sig:  0.00000000D+00, err_def:  0.00000000D+00)       OK (Ref:   10, res:   10)
+lin_elas_def_imp_65_old      ERROR (err_sig:  0.37545150D-05, err_def:  0.20310843D-16)    ERROR (Ref:   32, res:   42)
+lin_elas_def_imp_64_old      ERROR (err_sig:  0.42371246D-05, err_def:  0.11410609D-16)    ERROR (Ref:   32, res:   42)
+lin_elas_def_imp_65          ERROR (err_sig:  0.24650234D-04, err_def:  0.83134795D-17)    ERROR (Ref:   13, res:   19)
+lin_elas_def_imp_64          ERROR (err_sig:  0.24404817D-04, err_def:  0.82343091D-17)    ERROR (Ref:   13, res:   19)
+lin_elas_def_imp_65_octa     ERROR (err_sig:  0.15435050D-04, err_def:  0.69191280D-17)    ERROR (Ref:   13, res:   19)
+lin_elas_def_imp_64_octa     ERROR (err_sig:  0.15308114D-04, err_def:  0.82088873D-17)    ERROR (Ref:   13, res:   19)
+lin_elas_def_imp_65_noAC     ERROR (err_sig:  0.15522119D-03, err_def:  0.17641826D-16)    ERROR (Ref:   18, res:   27)
+lin_elas_def_imp_64_noAC     ERROR (err_sig:  0.15460886D-03, err_def:  0.65891200D-17)    ERROR (Ref:   18, res:   27)
+thermoelas_def_imp_64        ERROR (err_sig:  0.15451972D-04, err_def:  0.11269353D-16)    ERROR (Ref:   22, res:   33)
+beton_relax_65_old           ERROR (err_sig:  0.55664153D-05, err_def:  0.15688675D-16)    ERROR (Ref:  274, res:  599)
+beton_relax_65               ERROR (err_sig:  0.19309649D-03, err_def:  0.18248471D-16)    ERROR (Ref:   93, res:  175)
+beton_decharge_65            ERROR (err_sig:  0.71276788D+00, err_def:  0.22256463D-04)    ERROR (Ref:  169, res:  183)
+essai_fissure                ERROR (err_sig:  0.26890991D-02, err_def:  0.53986935D-03)    ERROR (Ref:   67, res:  100)
+essai_fissure_1proc          ERROR (err_sig:  0.26890991D-02, err_def:  0.53986935D-03)    ERROR (Ref:   67, res:  100)
+beton_fluage_64              ERROR (err_sig:  0.12285330D-05, err_def:  0.14704430D-05)    ERROR (Ref:  153, res:  167)
+polyxCC_def_imp              ERROR (err_sig:  0.51605411D-05, err_def:  0.50171938D-16)    ERROR (Ref:  101, res:  196)
+elas_def_imp_65_GD           ERROR (err_sig:  0.66499124D-04, err_def:  0.45130481D-07)    ERROR (Ref:   19, res:   30)
+polyxGD_traction             ERROR (err_sig:  0.77994187D-04, err_def:  0.72928420D-05)    ERROR (Ref:  117, res:  320)
+polyxGD_triax2p5_PK1            OK (err_sig:  0.00000000D+00, err_def:  0.00000000D+00)       OK (Ref:   71, res:   71)
+polyxGD_triax2p5_cauchy      ERROR (err_sig:  0.93440939D-07, err_def:  0.95821119D-07)    ERROR (Ref:  112, res:  117)
+
+
+Version 5.0.1 : 
+==============
+correction des bugs detecte a la compilation avec (intel/openmpi)
+tests validation OK sur
+	maldives	intel15+impi5		: 12 proc - 9.5'
+			intel15+openmpi1.8.1	: 12 proc - 9'
+			gnu482+openmpi1.8.1	: 12 proc - 23.7'
+	cobalt		intel16+openmpi1.8.8	: 28 proc - 5'
+			intel16+openmpi1.8.8	: 28 proc - 4,5'
+
+
+Version 5.0.0 : PBS DE COMPILATION AVEC INTEL + OPENMPI
+=============
+tests validation OK sur 
+	cobalt		intel16+intelMPI5.1.3 	: 28 proc - 279s
+			intel16+openMPI1.8.8 	: PB COMPILATION getbinCoefffromfile
+	maldives	intel15+openmpi1.8.1	: PB COMPILATION getbinCoefffromfile
+			gnu482+openmpi1.8.1	: COMPILATION OK!
+
+Version 4.1.0
+=============
+tests validation OK sur 
+	cobalt :	intel16+intelMPI5.1.3 	: 28 proc - 4' , 56 proc - 4' 
+			intel16+openMPI1.8.8 	: 28 proc - 5' , 56 proc - 5'
+	poincare :	intel15+intelMPI5.0.1 	: 16 proc - 7' , 48 proc - 5' 
+	maldives : 	(tests sur version 4.1.0+merge voxels composites en cours. gitID : da068945d3c4)
+			intel15+impi5		: 12 proc -  8.8', 24 proc - 8.5'
+			gnu482+ompi181		: 12 proc -  23' , 24 proc - 17'
+
+
+
+Version 4.0.1
+=============
+tests de validation OK sur
+	maldives :	intel15+impi5
+			gnu482+openMPI181
+	futuna3 :	gnu485+openmpi201
+	cobalt :	intel16+intelMPI5.1.3	=> ATTENTION : PB sortie_std, NECCESSITE DE SHUNTER sortie_std
+					POUR FINALISER LES CALCULS DE YANG (SINON, PLANTAGE ALEATOIRES,
+					segfault après convergence, surement dans sortie_std)
+
+			intel16+openMPI1.8.8	=> ATTENTION ECRITURE GROS FICHIERS (TOMO) TRES LONGUE
+						moins de 1min pour intelMPI plus de 7 pour openMPI
+						eventuellement tester mpiprofile/openmpi/big_collective_io
+						
+Version 2.3.4
+=============
+	maldives (intel) -	 intel15+impi5	   : OK
+				 gnu482+openMPI165 : OK (mais + lent qu'intel)
+				 gnu482+openMPI181 : PB test beton_relax_65_old : rester "bloqué" après quelques itérations
+
+	machine fabien (intel) - gnu492+openMPI165 : OK (mais + lent qu'intel)
+
+	poincare -		 gnu472+openMPI163 : OK (mais + lent qu'intel)	
+				 gnu490+openMPI184 : OK (mais + lent qu'intel)	- temps identiques à gnu472+openMPI163 !
+				 intel13+impi4	   : OK
+				 intel15+impi5     : OK
+
+	airain -		 intel14+bullxmpi1.2.8.4 : OK

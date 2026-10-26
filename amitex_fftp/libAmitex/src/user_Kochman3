@@ -1,0 +1,44 @@
+"NON LOCAL USER" PROCEDURES USED IN THE STANDARD ALGORITHM : 
+                         TO BE ADAPTED FROM the example user_gurtinSS2nloc3
+===================================================================================================
+
+
+IMPORTANT
+---------
+
+   Start from the reference directory amitex_fftp/libAmitex/user_gurtinSS2nloc3
+
+   An example using the corresponding executable is given in amitex_fftp/validation/script_tests.sh
+
+   Developments can be made in any user_directory.  
+
+
+MAIN IDEAS
+----------
+
+   The introduction a new coupling (new physics, new code etc...) with the standard algorithm can 
+   be done using the developments made for non-local behaviors
+
+
+   A FINIR
+
+   
+
+HOWTO : start from user_gurtinSS2nloc3
+---------------------------------
+
+Create your own user_directory
+
+      1 / Copy non_local_user_mod.f90, Makefile (and README)
+               FROM   amitex_fftp/libAmitex/user_gurtinSS2nloc3 IN   your own user_directory
+
+In your own user_directory
+
+      2 / source /path/to/amitex_fftp/env_amitex.sh or set environment variable AMITEX_PATH by hand
+
+      3 / Modify non_local_user_mod.f90 to implement your own model in user_nloc1, user_nloc2 or user_nloc3
+
+      4 / To compile and create a new executable file : make
+
+      5 / To clean :   make clean
+

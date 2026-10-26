@@ -1,0 +1,23 @@
+TESTS DES CONVENTIONS POUR :
+	calcul des moyennes
+	calculs de somme de x^2
+
+pour compiler
+	ajuster le Makefile (variable FLAG_2DECOMP si on utilise la nouvelle ou l'ancienne version de 2decomp)
+	make
+pour executer
+	mpirun -np 4 ./conventions_2decomp_fftw
+
+
+CONCLUSIONS : 
+	moy(a)=af(1,1,1)/ntot
+	som(a2) = som(af2) / ntot
+	
+
+ATTENTION : prendre en compte que la TF d'un signal reel est defini sur un demi-espace (1:nx/2.1,1:ny,1:nz)
+
+TESTS DTT
+	test_DTT.f90 : check the use of the a "old" dvanced fftw3 API to apply dft or dtt and dismiss (starting end/or ending) points
+        "old" API will be deprecated in 2decomp -> test_DTT.f03
+        
+	=> test_dtt_f03 :  use of fftw3_f03 API

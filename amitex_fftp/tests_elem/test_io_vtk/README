@@ -1,0 +1,8 @@
+SIMPLE EXAMPLE TO TEST IO with VTK functions
+
+Once amitex installed :
+
+	make
+	mpirun test_io_vtk
+
+

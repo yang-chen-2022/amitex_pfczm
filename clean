@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+
+make -C "$repo_root/amitex_fftp/libAmitex/src" clean
+make -C "$repo_root/amitex_fftp/libAmitex/src/user_pfczm" clean
+make -C "$repo_root/examples/behaviours" clean
+(cd "$repo_root/amitex_fftp" && ./clean)

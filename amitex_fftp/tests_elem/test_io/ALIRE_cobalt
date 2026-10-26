@@ -1,0 +1,89 @@
+REMPLIR CE DOC SUR MARQUISES!!!
+-------------------------------
+
+TODO : modifier le cas test pour tester la LECTURE des vtk, pas uniquement l'ecriture
+
+
+TESTS IO ON COBALT (use of amitex with option -coeff2print) 
+============================================================
+
+
+
+============================================================================================================
+BILAN Série de tests 09/2019 -> CORRECTION PB write_header_vtk dans io_amitex_mod.f90
+
+	* ecriture VTK : plus lent sur scratchdir que workdir		=> OK : n'apparait plus avec PB ci-dessous resolu
+	* Beaucoup de temps passé AVANT write_bin 			=> OK : PB RESOLU -> (23/09/2019)
+	* write_bin semble moins efficace que les tests 2decomp (en double prec!) 
+									=> TODO mais PAS URGENT : RIEN DE CATASTROPHIQUE...
+	APRES correction PB :
+	* le temps dans write_bin est ~constant quelque soit le nb de proc => NORMAL??
+
+------------------------------------------------------------------------------------------------------------
+400^3 28c (1noeud)
+
+	scratchdir 	0.45s
+	workdir 	0.35s
+
+1000^3 112c (4noeuds)
+
+	scratchdir 	8.6s (dont 4.6s dans write_bin) 
+	workdir 	6.7s (dont 4.8s dans write_bin)
+	
+	
+1000^3 280c (10noeuds)
+
+	scratchdir 	15s (dont 4.6s dans write_bin) à comparer à 3.5s en pure 2decomp (en double precision!)
+			11s (dont 4.7s dans write_bin)
+		APRES correction ecriture header sur noeud 0 uniquement :
+			4.4s (dont 4.4s dans write_bin)
+
+	workdir 	9s  (dont 4.5s dans write_bin) à comparer à 2.6s en pure 2decomp (en double precision!)
+			9.4s (dont 4.8s dans write_bin)
+		APRES correction ecriture header sur noeud 0 uniquement :
+			4.6s (dont 4.3s dans write_bin)
+
+1000^3 2800c (100noeuds)
+
+	scratchdir 	81s (dont 14.s dans write_bin)
+		APRES correction ecriture header sur noeud 0 uniquement :
+			5.2s (dont 4.8 dans write_bin)
+
+	workdir 	56s (dont 4.6s dans write_bin)
+		APRES correction ecriture header sur noeud 0 uniquement :
+			4.6 (dont 4.5s dans write_bin)
+
+============================================================================================================
+VALIDATION  v8.14 +6 commit eb39c1fb675  
+    (dont evolution des ecriture/lectures vtk, dont fonction print_field_vtk utilisee ici)
+------------------------------------------------------------------------------------------------------------
+
+       => OK le 8/11 : Non-régression sur le cas 1000^3 / 2800c
+			-> on retrouve des temps de calculs quasi-identiques
+
+------------------------------------------------------------------------------------------------------------
+
+le 7/11/2019 v8.14 +6 commit eb39c1fb675 dont evolution des ecriture/lectures vtk
+
+1000^3 2800c (100noeuds)
+	scratchdir	11.6s (dont 10.2s dans write_bin)
+	workdir 	6.3s (dont 6.3 dans write_bin)
+
+Resultats moins bons  (mais ça reste correct), est-ce un hasard (fonctionnement du réseau à cet instant...)?
+
+=> calcul relancés avec version 7f871238fe7f871238fe du 24/09/2019 après CORRECTION ecriture entete vtk (resultats précédent APRES correction)
+	1000^3 2800c (100noeuds)
+		scratchdir	5.20s (dont 5.15s dans write_bin)	vs 5.2s/4.8s precedemment
+		workdir 	5.0s (dont 5.0s dans write_bin)		vs 4.6s/4.5s precedemment
+
+=> calculs avec version v8.14 + 6 commit eb39c1f (le 8/11 au matin tot, cluster peu chargé)
+	1000^3 2800c (100noeuds)
+		scratchdir	5.1s (dont 5.1s dans write_bin)	|  => OK 
+		workdir 	4.6s (dont 4.6s dans write_bin) |
+
+		scratchdir	6.0s (dont 5.7s dans write_bin)	|  => OK 
+		workdir 	4.9s (dont 4.5s dans write_bin) |
+		
+	
+============================================================================================================
+

@@ -1,0 +1,37 @@
+OBJECTIF  
+	Appel externe et validation des fonctions umatReuss, umatLaminate et umatVoigt
+============================================================================================
+
+2024 : les fonction umatvoigt, umatreuss n'existe plus...
+
+TODO  : remplacer ces appels par umatComposite
+
+
+UTILISATION :
+
+	make test_elasiso
+	./test_elasiso		test utilisation de la loi elasiso 					OK
+
+	make test_umatvoigt
+	./test_umatvoigt	test utilisation de umatvoigt avec loi elasiso (2 phases)		OK
+
+	make test_umatreuss
+	./test_umatreuss	test utilisation de umatreuss avec loi elasiso (2 phases)		OK	
+
+
+IDEM avec test_CC, test_umatvoigtCC, test_umatreussCC
+ le 18/11/16 : 
+	CAS HOMOGENE : avec 2 phase CC identiques (orientation identique (0,0,0))	
+		=> courbes identiques
+		   pas de souci lors de l'inversion de chargement
+	CAS HETEROGENE (2 orientations differentes)
+		=> Voigt tourne sans pb (Normal!)
+		=> REUSS tourne 
+		   Effet ACV : TRES EFFICACE
+                   Effet initialisation (avec ACV) 
+			"linear" ameliore
+			"proportional" ~ "linear" si pas de composante nulle
+					sinon "proportional"="default" (cas rare)
+			"proportional" a priori mieux adapté aux changements d trajets de chargement
+                                      
+

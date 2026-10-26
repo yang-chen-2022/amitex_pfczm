@@ -1,0 +1,60 @@
+#!/bin/bash
+#MSUB -r castest                   # Request name
+#MSUB -n 2800                    # Number of tasks to use
+#MSUB -T 300                    # Elapsed time limit in seconds (max 1800 sur noeud std)
+#MSUB -o castest.%I.o              # Standard output. %I is the job id
+#MSUB -e castest.%I.e              # Error output. %I is the job id
+#MSUB -q broadwell		   # Choosing standard nodes
+##MSUB -Q test		   # Choising queue test
+
+set -x
+
+
+
+# choix intelmpi
+#source $CCCHOME/env_amitex_fftp-impi.sh
+
+# choix par defaut
+source $CCCHOME/env_amitex_fftp-default.sh
+
+module list
+
+AMITEX=$CCCHOME/amitex_fftp/libAmitex/bin/amitex_fftp
+
+cd $CCCHOME/amitex_fftp/tests_elem/test_io
+
+
+#==============TAILLE DE LA GRILLE
+N0=1000
+
+
+
+
+# 1 - calcul sur SCRATCH
+DATE='/bin/date'
+BEFORE=$($DATE +'%s')
+
+mkdir $CCCSCRATCHDIR/tmp/tmp1
+ccc_mprun $AMITEX -coeff2print 1 -m xml/mat_homog.xml -c xml/char_traction.xml -a xml/algo_default.xml -NX $N0 -NY $N0 -NZ $N0 -s $CCCSCRATCHDIR/tmp/tmp1/res
+
+AFTER=$($DATE +'%s')
+ELAPSED=$(($AFTER - $BEFORE))
+echo "Temps d'execution sur SCRATCHDIR (s) = " $ELAPSED > time1.log
+
+# 2 - calcul sur WORKDIR
+DATE='/bin/date'
+BEFORE=$($DATE +'%s')
+
+mkdir $CCCWORKDIR/tmp/tmp1
+ccc_mprun $AMITEX -coeff2print 1 -m xml/mat_homog.xml -c xml/char_traction.xml -a xml/algo_default.xml -NX $N0 -NY $N0 -NZ $N0 -s $CCCWORKDIR/tmp/tmp1/res
+
+AFTER=$($DATE +'%s')
+ELAPSED=$(($AFTER - $BEFORE))
+echo "Temps d'execution sur WORKDIR (s) = " $ELAPSED >> time1.log
+
+
+
+
+
+
+

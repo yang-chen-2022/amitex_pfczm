@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Materials>
+
+<!-- REFERENCE MATERIAL -->
+<Reference_Material Lambda0="4.0385e+10" Mu0="2.6923e+10"/>
+
+<!-- MATERIAL 1 -->
+<Material numM="1" Lib="/ccc/cont002/home/den/gelebart/amitex_fftp/libAmitex/src/materiaux/libUmatAmitex.so" Law="elasiso" >
+                <Coeff Index="1" Type="Constant" Value="4.0385e+10"/>
+                <Coeff Index="2" Type="Constant" Value="2.6923e+10"/>
+</Material>
+
+</Materials>
+

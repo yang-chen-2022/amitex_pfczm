@@ -1,0 +1,229 @@
+TODO
+*****************************************************************************************
+PRIORITES 
+
+	IMPORTANT
+		Prendre en compte CORRECTION des criteres en DIFFUSION
+		=> unifier les 3 fonctions en une? (HPP, GD, D)
+
+	IMPORTANT : anlayser et comprendre le pb de reproductibilite des resultats	
+		-> ecart acceptable la majorite du temps
+		-> MAIS beaucoup plus marques avec des comportements endommageables
+		effet compilateur? effet option ffast-math? etc...
+
+	IMPORTANT : supprimer les erreurs a l'execution avec compil. "ifort -g -check all"
+
+        REVOIR LA DEFINITION DES FREQUENCES (ATTENTION IMPACT SUR 'EXTENSIONS')
+
+*****************************************************************************************
+
+INSTALL
+=======
+reflechir à la possiblité de supprimer la dependance à fftw3f (simple precision) -> source classique de pb à l'install
+ajouter variable COMPILER=gnu ou intel et remplacer les tests sur FC par des tests sur COMPILER...
+
+
+ARCHITECTURE GENERALE	
+=====================
+1/ proposer une interface avec un langage interprété, interactif
+	=> créer un interpréteur de commande (simple)
+	=> utiliser un interpréteur évolué : PM language écrit en fortran (attention vérifier que le projet avance)
+	=> interface python (bien cerner les limites de f2py?)
+
+2/ faire heriter la structure material d'une structure geometry (remplie dans read_geom)
+
+3/ reflechir a ajouter une "option" supplémentaire a materiau.xml pour les coefficients:
+   a l'identique des Variables internes
+	Type="variable" File="file.vtk" Format="vtk"
+	le fichier est lu en // et utilise pour affectation du coeff
+   ATTENTION necessite de redefinir mattotP.Coeff
+	a - type-derivee coefficient (permet d'avoir des tableaux de taille variables en fcn du coeff) 
+	b - ajouter un attribut %Coeff_variable : liste des coeff variables
+	c - dans behavior : Modification peu invasive 
+			boucle/materiaux
+				boucle/zone
+					affecter coeff => MODIFIER LA LECTURE DANS LA STRUCTURE
+					boucle/voxel
+						AJOUTER : surcharger affectation coeff_variable
+
+   prevoir une nouveau fonctionnement pour ligne de commande (-nz non renseigne)
+        amitex_fftp -nm material.vtk -c char.xml -m mate.xml -a algo. xml -s sortie 
+           si dans mate.xml, on a Format "vtk" pour un coeff d'un materiau -> 1voxl/zoe pour ce materiau  
+
+4/ METTRE AU QUASI PROPRE une version mpi-OPENMP
+
+5/ Homogénéiser les longueurs de string : 100,200,400,1000 etc...
+
+6/ amitex_lib : regrouper init_amitex_lib_0 et init_amitex_lib (et initialiser 2decomp/fft)
+                idealement code appelant ne devrait pas avoir à charger 2decomp/fft 
+
+LOADING
+========
+ Lors d'un changement de chargement partiel,
+	si chargement est de type 'linear' et que l'on ne change pas le tyep de pilotage 
+           => conserver la valeur 'imposee' (et non la valeur calculee) en fin de chargement precedent  
+
+ALGORITHME
+==========
+A1 - Prevoir de basculer l'option Nitermin et Nitermin_acv par defaut à 0.
+             - ne sortir que si crit_def < crit_def00(~10e-10 par ex)
+             - warning si crit_def > 1e-10 en sortie d'ACV 
+             - réfléchir a une alternative si crit_def vraiment trop grand (> 1e-6 par ex...)?
+               ne pas retenir la proposition...? nécessite de calculer crit_def en sortie d'acv
+
+0/ DIFFUSION - MECANIQUE
+	- introduction de termes sources (thermique) et densité de forces extérieures (mécanique) 
+	- algorithmes instationnaires 
+
+0bis/ COUPLAGE MECANIQUE DIFFUSION
+	- algorithme et premiers tests (elasto-diffusion?)	
+
+1/ Pilotage
+1-a / Pilotage à direction de contrainte imposée + valeur de pilotage  
+		- dans xml rajouter <ij StressDirection="">, 
+		- modifier : initialisation amitex_fftp, lecture chargement, structure chargement , get_local_loading et updateEimp,
+  
+1-b / Pilotage vitesse (mixte contrainte/def) + arrêt sur critère  (pas ex traction en def imposée avec arrêt sur critère contrainte)
+	=> PAS SIMPLE
+
+1-c / Pilotage mixte hors-axe : 
+	Mise en données :conserver le chargement actuel dans un repère local 
+       			 et rajouter 3 angles de rotation (Bunge) pour changer de repère
+	Algorithme : voir Kabel (2015 ou 2016...)	
+
+2/ Cycles
+
+4/ Algo incrémental :  => endommagement, hyperélasticité ??
+
+5/ Sous-découpage du pas de temps
+
+6/ Mise en place d'un restart
+
+7/ Tester acceleration sur les contraintes comme dans CAST3M ?? 
+
+8/ CONVERGENCE FORCEE :               
+               A/ Si Nit_cvfor atteint : pouvoir continuer (jusqu'à Nitermax) si l'algo est en phase de convergence
+                  => indices de convergence : par ex sur les N dernieres iterations :
+                          - nombre d'iterations ayant amelioe le resultat
+                          - max(crit_eq) - min(crit_eq)
+               B/ Limiter l'evolution des variables internes (critere sur l'increment de def max)
+                          - evaluer un parametre alpha = max( max(|DDEF|)/ddefmax, 1)
+                          - calculer le cpt avec Def=Def_sauv/alpha 
+               C/ Idée T.Helfer : Une fois la convergence atteinte, relancer complètement en initilisant avec 
+                                  la solution obtenue à l'issue de la CV forcée (en conservant les variables internes initiales)
+
+9/ Calcul HPP avec gard_U : 
+	Aldo est parti de l'algo HPP : nécessite de rajouter un champ Def_nsym, force à imposer un grad_dep symmétrique
+	=> IDEE ALTERNATIVE : partir de l'algo GDEF et supprimer les parties specifique GDef...
+			-> on travaille déjà sur une inconnu non-sym!
+			-> devrait permettre d'imposer un GRAD_U non symmétrique.
+			-> en HPP, le tenseur PK1=cauchy devient symetrique, necessite d'imposer des composantes symetriques sur PK en donnees d'entrees
+
+10/ Acc de Conv : a mettre en place sur les deplacements
+
+11/ REVOIR la definition des Frequences (cf travaux matlab sur CL etendues, post-doc Noé-Brice)
+
+
+POST-TRAITEMENT
+===============
+1/ reprendre deformedShape pour des fréquences "filtrées" : devrait marcher...!!
+	=> MANQUE DE "COMPREHENSION" (à discuter)
+
+1b/ etendre deformed_shape au cas HPP 
+
+1c/ reprendre deformed_shape, basculer certaines fonctions dans io_amitex et io2_amitex
+
+1d/ option pour amplifier la deformee (pour la visu)
+
+2/ Création d'une moulinette vtk2pvtx (vtk -> pvti ou pvts)
+   
+	voir : 	https://fr.wikibooks.org/wiki/Introduction_%C3%A0_ParaView/Quelques_exemples_simples
+		VTKfileformats.pdf
+
+3/ outils d'interpolation d'une grille sur une autre ou sur un maillage
+
+4/ Developper differents post et pre traitements appelables sous forme d'une librairie (intéret?)
+
+ENTREES-SORTIES
+===============
+
+
+
+/ Lecture de dx,dy,dz dans le cas "continuous"
+
+0/ rendre OPTIONNEL le noeud <output> de loading.xml (comme prévu initialement)
+
+1/ Message d'erreur pour des balises inexistantes
+ex :  <xx Driving="Strain" Evolution="Constant" Value="-5e-4"/>
+	ici la ligne est acceptée mais Value n'est pas lue.
+ex : <Output_vtkList List="1 6 "/> ne renvoit pas d'erreur!!!
+
+1-bis/ PREPARER DES CAS-TESTS XML DE VALIDATION DES MESSAGES D'ERREURS
+
+2/ CONFORMITE SITE WEB : insensibilité à la casse pour "ascii" et "binary"
+
+3/ FAIRE LE POINT (modif et/ou commentaires) sur les noms de fichiers entrée/sortie (pas super clair)
+
+
+5/ ENTREES : un seul proc doit lire les fichiers
+
+6/ SORTIES : revoir les calculs de moyennes
+	bien distinguer eval_moy (très simple, utile pour le calcul), eval_moyMat et eval_moyZone
+	CREER un module tools_field_mod.f90 permettant d'effectuer certaines fonctions sur les champs
+
+7/ SORTIE vtk DU CHAMP D'ERREUR
+
+
+9/ Mettre en place un parser de fonctions pour le chargement!
+	http://zeus.df.ufcg.edu.br/labfit/functionparser.htm
+	https://github.com/ivomarb/Fortran-Expression-Evaluator
+	https://github.com/jacopo-chevallard/FortranParserhttps://github.com/jacopo-chevallard/FortranParser
+
+
+COMPORTEMENTS
+=============
+
+1/ rajouter quelques comportements hyperélastiques => demande autorisation L.Gornet (dès que dispo au téléchargement)
+
+1-bis/ rajouter comportement élastques anisotropes AVEC DEFORMATION LIBRE => notamment pour maclage et couplage NUMODIS
+
+2/ rajouter les comportements "composites" 
+
+COMPORTEMENT MFRONT 
+===================
+
+1/ Gestion des messages d'erreur
+
+2/ Prise en compte substepping...
+
+COUPLAGE DDD
+============
+ATTENTION : le code doit pouvoir prendre en compte un grain isolé en DDD et des grains voisins en plasticité cristallin (ou autre)
+
+1/ Mettre en place des éléments du couplage
+Balise couplage_ddd dans algo.xml + au moins un matériau elas_aniso_defLVI (def.libre=variable interne)
+Le couplage aura lieu sur tous les matériaux elas_aniso_defLVI
+
+1-a : 
+=> amitex_fftp.f90 : 	si couplage_ddd "on": 	allocation d'un champ de déformation libre
+						call ddd_init (pas de facettes)
+=> resolution_mod : 	nouveau champ à transmettre à resolution_NL_base
+			boucle chargement :
+ 			si balise active : 	call ddd_redistribute_facets (si nécessaire)
+						call ddd_eval_eigenstrainincrement - evalue le champ 3D (remplit le champ au voisinnage des facettes)
+						call ddd_uptdate_eigenstrain2varint - additionne les champs sur les variables internes du matériau elas_aniso_defLVI
+
+			resolution système linéaire
+			si balise active : 	call ddd_evalforces
+						call ddd_redistribute_forces (si nécessaire)
+						call ddd_unpas
+			fin boucle
+
+
+SITE WEB
+========
+0/ page web des comportements
+1/ voir dev sous windows amitex_fftp_bootstrap : reprendre le site en entier
+
+
+

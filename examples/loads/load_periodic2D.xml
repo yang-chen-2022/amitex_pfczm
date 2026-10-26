@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Loading_Output>
+
+<!-- OUPUT QUANTITIES -->
+<Output>
+    <vtk_StressStrain Strain="0" Stress="0"/>
+    <vtk_IntVarList numM="1">  </vtk_IntVarList>
+    <vtk_IntVarList numM="2"> 1 </vtk_IntVarList>
+    <vtk_IntVarList numM="3"> 1 </vtk_IntVarList>
+    <vtk_IntVarList numM="4">  </vtk_IntVarList>
+    <vtk_IntVarList numM="5"> 28 </vtk_IntVarList>
+</Output>
+
+
+<!-- Initial values of temperature and other loading parameters -->
+<InitLoadExt>
+    <T Value="20"/> 
+    <Param Index="1" Value="0."/>
+</InitLoadExt>
+
+
+<!-- SUCCESSIVE LOADINGS AND OUTPUT TIMES -->
+<Loading Tag="1">
+    <Time_Discretization Discretization="Linear" Nincr="10" Tfinal="100" />
+    <Output_vtkList> 10 </Output_vtkList>
+    <!--mechnical load-->
+    <xx Driving="Strain" Evolution="Linear" Value="0.4e-3"/>
+    <yy Driving="Stress" Evolution="Constant"/>
+    <zz Driving="Stress" Evolution="Constant"/>
+    <xy Driving="Stress" Evolution="Constant"/>
+    <xz Driving="Stress" Evolution="Constant"/>
+    <yz Driving="Stress" Evolution="Constant"/>
+    <!--temperature-->
+    <T Evolution="Constant"/>
+    <!--other loads-->
+    <Param Index="1" Evolution="Constant"/>
+</Loading>
+
+<!-- SUCCESSIVE LOADINGS AND OUTPUT TIMES -->
+<Loading Tag="2">
+    <Time_Discretization Discretization="Linear" Nincr="2000" Tfinal="2100" />
+    <Output_vtkList> 50 100 150 200 250 300 350 400 450 500 600 700 800 900 1000 1100 1200 1300 1400 1500 1600 1700 1800 1900 2000 </Output_vtkList>
+    <!--mechnical load-->
+    <xx Driving="Strain" Evolution="Linear" Value="0.01"/>
+    <yy Driving="Stress" Evolution="Constant"/>
+    <zz Driving="Stress" Evolution="Constant"/>
+    <xy Driving="Stress" Evolution="Constant"/>
+    <xz Driving="Stress" Evolution="Constant"/>
+    <yz Driving="Stress" Evolution="Constant"/>
+    <!--temperature-->
+    <T Evolution="Constant"/>
+    <!--other loads-->
+    <Param Index="1" Evolution="Constant"/>
+</Loading>
+
+</Loading_Output>
+

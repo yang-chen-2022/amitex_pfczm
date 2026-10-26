@@ -1,0 +1,116 @@
+*****************************************************************************************************************
+A CORRIGER
+*****************************************************************************************************************
+BUG v8.7.0 : problème à la lecture de coefficients 'ascii' (P.PILVIN)
+=====================================================================
+       Probleme a la lecture de coeff dans fichier ascii (si présence d'un blanc avant la valeur) 
+
+BUG v8.4.1 : debut du fichier .log corrompu (caractere aleatoire)
+==================================================================
+       08/02/2019 - travail dessus sans succès
+       existe depuis un moment...
+       plutôt avec plusieurs processeurs...
+
+BUG v7.0.0 : plantage cas test laminate_polyx avec GCC810
+=============================================================
+	Material_mod.f90, CalcResiduLaminate
+	Plantage du a un bug de gcc810
+	=> Contournement possible : remplacer reshape(spread(B)) par A=spread(B)+reshape(A)
+	=> TODO stage J.Duverge
+
+BUG v6.2.0 : lecture de fichier bin 'char' lors de la lecture de donnees composites
+==================================================================================
+L'ERREUR VIENT DU FICHER zone2.bin
+	la sortie std montre que la dernirer valeur est nulle
+	pourtant on peut relire sans pb zone2.bin dans octave (avec readbin) (derniere valeur non nulle)
+	pourtant la lecture de la zone1.bin se passe bien...
+	on résoud le pb en ré-écrivant le fichier en 'short'
+
+=> pb dans getbincoefffromfile avec le format 'char'??
+
+VOIR DANS dev/dev_voxcomp/tests_ver_neper_63_groups_bin_only_two_materials/
+
+v6.3.0 : VALEUR DU CRITERE DE COMPATIBILITE NON "NEGLIGEABLE" : de l'ordre de 10-10...10-9
+==========================================================================================
+observe lors de simulation pour yang dans bug/bug_ychen_plantage_sortie_std_03_05_2018/
+
+CALCULS NON REPRODUCTIBLES SUR CAS A GRANDS NOMBRES D'ITERATIONS
+================================================================
+observé lors de simulation type "gurson" (avec J.Hure)
+observe sur des calculs elastiques!!
+   voir : /dev/dev_cvfor/
+
+GESTION DES TEMP et DTEMP, PREDEF et DPRED dans l'algo : vérifier la conformité avec "umat" (DTEMP n'est pas fournie)
+========================================================
+	on impose DTEMP=0 et DPRED=0 dans material_mod.f90
+	si TEMP et PREDEF sont les valeurs en fin de pas de temps, ce n'est alors sans doute pas trop faux.
+	=> A VERIFIER ET AMELIORER!!!
+		
+
+
+ECRITURE DE FICHIERS VTK :  YANG -> SEGMENTATION FAULT...   PB NON REPRODUIT
+==========================
+Calculs Yang => il semblerait qu'il y ait une limite / pinceau
+	ex : 	573x573x167 : 	passe sur 2x10 proc
+				plante sur 1x12 proc et 2xNproc si N<=8 (9 non testé)		
+=> reproduire sur un cas test avec 1 proc, chercher la limite (~140^3 d'après exemple précédent)
+
+
+TEMPS DE CALCULS ET D'ECRITURE PAS VRAIMENT COHERENTS => Analyse des temps à reprendre
+======================================================================================
+
+ANOMALIE v6.1.0 : ecriture des vtk très longue avec opempi vs intelMPI (Gros calul élastique Y.Chen)
+=====================================================================================================
+
+
+BUG v6.1.0 ALEATOIRE observé sur FUTUNA3 :plantage cas de validation 'beton_relax_65_old' : PB NON REPRODUIT
+========================================================================================
+	At line 414 of file sortie_std.f90 (unit = 1, file = '▒7▒▒P')
+	Fortran runtime error: File '../resultats/beton_relax_65_old/beton_relax_65_old.std' does not exist
+
+	=> script_test relancé avec ce cas seul :       ok	|
+	=> script_test complet relancé :                ok	| PLANTAGE NON REPRODUIT
+
+	ATTENTION SUR FUTUNA3 : risque d'interference avec autres programmes...
+                          c'est le cas sur les temps de calculs (peuvent devenir très long en cas de job concurrent)  
+
+
+BUG v6.1.0 PLUSIEURS MATERIAUX PLUSIEURS ZONES avec lecture des zones dans fichier "ascii" (identifié par R. Charière)
+=============================================================================================================
+	A reproduire, voir depuis quand ce pb existe? même pb avec les fichiers "binary"?
+
+
+
+
+
+
+
+*****************************************************************************************************************
+BUGS CORRIGES
+*****************************************************************************************************************
+le 21/01/2016
+
+LECTURE VTK : 
+============
+prévoir un message d'erreur associé à la lecture d'une image vtk correcte mais au format POINT_DATA au lieu de CELL_DATA
+
+-----------------------------------------------------------------------------------------------------------------
+le 21/01/2016
+
+CHARGEMENT, LECTURE VTK: corriger nextReal
+========================
+ci-dessous, ne marche pas si on écrit 1. au lieu de 1.0
+
+<Loading Tag="1">
+    <Time_Discretization Discretization="User" Nincr="1" />
+    <Time_List>1.0</Time_List>
+
+
+-----------------------------------------------------------------------------------------------------------------
+10/2016
+CAS-TESTS DE VALIDATION "BETON" : avec gcc482+openMPI181, ces calculs commencent puis semblent rester bloqué
+=================================
+	pb "corrrigé" en  : 	- rajoutant des MPI_BARRIER (pas satisfaisant)
+				- corrigeant un bug dans l'evaluation des criteres (freq (1,1,1) 
+				  utilisee sans verifier appartenance au pinceau (=> erreur aéatoire)
+-----------------------------------------------------------------------------------------------------------------

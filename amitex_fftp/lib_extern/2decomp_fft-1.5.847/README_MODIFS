@@ -1,0 +1,5 @@
+Makefile.x86 : modifs installation
+               compilation dissociee 2decomp/amitex
+decomp_2d, fft_fftw3_f03, fft_generic, fft_mkl, fft_common : modifs -> MULTIGRID
+               passage pointeurs xsize, xstart, ...
+               passage pointeurs + creation FFT_multigrid cible des pointeurs

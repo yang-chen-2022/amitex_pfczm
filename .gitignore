@@ -1,0 +1,24 @@
+# MATLAB sources are not distributed
+examples/microstructures/code_matlab/
+
+# Generated microstructures (see examples/microstructures/code_python/README.md)
+examples/microstructures/periodic2D/
+examples/microstructures/periodic3D/
+examples/microstructures/minicomp/
+
+# Results
+examples/results
+
+# Temporary files
+bkup_tests_23oct2026/
+
+# Python caches
+__pycache__/
+*.py[cod]
+
+# Fortran module files
+*.mod
+*.o
+*.obj
+*.so
+fort.*

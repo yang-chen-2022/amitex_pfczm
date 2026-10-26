@@ -1,0 +1,75 @@
+Variables Nloc (1 et 2): d et H
+Variable  GNloc        : H+  
+Nloc and GNloc are iitialized to 0
+
+
+A - init_user_nloc_variables1 
+-------------------------------
+
+  1 - Initialize Nloc fields with corresponding internal variables
+      -> call Assemble_field_from_VarInt0(list_mat,list_varInt_Nloc,Nnloc,Nloc(modelInd)%Var)
+  
+  2 - allocate and initialize adiitionnal fields
+  tau  = 0
+  tau0 = 0 
+  tauF = 0
+  AA   = 0
+  BB   = 0
+  FreqLaplacian -> desactivee
+  ACT3_Rdamage = 0
+  ACT3_Udamage = 0
+
+
+LOOP OVER LOADINGS
+******************
+
+   A - user_nloc_before1 : calcul endommagement d (-> MattotP()%Varint0) a H+ constant
+   -----------------------
+       
+        1 - Calcul endommagement d a H+ constant : 
+          call resolPF_visc(ind_tps,dt,nItPF,critPF,timePF,list_mat,modelInd)
+          
+	     Si initDamage actif (p_string(2)="true") 
+             initilisation de d (Nloc(modelInd)%Var(1)) a partir de
+                 d_ (pas precedent) stocke dans Nloc(modelInd)%Var(1) 
+                 d0  (debut de pas) stocke dans mattotP()%Varint0
+                 dt actuel et dt du pas d'avant
+
+          input  : GNloc (H+)
+                   Nloc  (d, H is not used)
+          output : Nloc  (d, H is not modified)
+
+        2 - Actualise Nloc vers mattotP()%Varint0  (d et H) 
+          call Assign_VarInt0_from_Field(list_mat,list_VarInt_Nloc,Nnloc,Nloc(modelInd)%Var)
+
+
+        3 - Si initDamage actif (p_string(2)="true") : Stocker d (et H) de mattotP()%Varint  
+               => d_ (et H_) dans Nloc(modelInd)%Var pour initDamage au pas suivant
+          call Assemble_Field_From_Varint(list_mat,list_VarInt_Nloc,Nnloc,Nloc(modelInd)%Var)
+
+   B - unpas_NL_base :  calcul H (dans MattotP()%Varint) a d constant (dans mattotP()%Varint0)
+   -------------------
+
+         (SIG0,DEF0,mattotP()%Varint0) -> (SIG,DEF,mattotP()%Varint) 
+
+   C - user_nloc_after1 : calcul H+ (dans GNloc)
+   ---------------------- 
+
+          GNloc = max(GNloc, H dans mattotP()%Varint) 
+          -> call updateHistory(list_mat,list_varInt_Nloc,modelInd)
+
+   D - update SIG0 & Varint :  update SIG0 and mattotP()%Varint0 (<- MattotP()%varint)
+   --------------------------                 
+
+     This update of mattotP()%Varint0 (done in resolution_NL_base) has no effect because 
+                 H+ in mattotp()%Varint0 is not used   
+                 d  in mattotP()%VarintO is re-evaluated in A/
+                 H  in mattotP()%VarintO is not used
+                                
+ 
+
+!-----------------------------------------------------------------------
+
+
+
+

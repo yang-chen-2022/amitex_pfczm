@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Algorithm_Parameters>
+    <Algorithm Type="basic_scheme">                         <!-- "Default" (Basic_Scheme) or "Basic_Scheme" -->
+        <Convergence_Criterion Value="1e-4"/>               <!-- "Default" (1e-4) or positive value <1e-3   -->
+        <Convergence_Acceleration Value="true"/>            <!-- "True" or "False" -->
+        <Nitermax Value="3000"/>                           <!-- max nb of iterations for mechanical pb -->
+	<Convergence_Forced Value="false" Nit_cvfor="1000" Ncvfor="5"/>  <!-- activation avec des parametres differents des parametres par dfaut -->
+    </Algorithm>
+    
+    <Algorithm_laminate>
+        <Nmax_subdivision Value="8"/>                     <!-- max nb of subdivisions -->
+	<Jacobian_matrix Value="numerical"/>     <!--mfront_tangent, elastic, mfront_secant, numerical-->
+	<Numerical_Jacobian_perturbation Value="1e-8"/>   <!--if "numerical", this should be defined-->
+	<Initialisation_type Value="linear"/>        <!--method for initialising Depsilon of each phase: proportional, linear, default (homogeneous)-->
+	<Convergence_Acceleration Value="true"/>      <!-- acceleration convergence-->
+	<Convergence_Criterion Value="1e-2"/>     <!--conv. criterion for Newton algo, default=1e-2, the actual value used is this value * convCrit_Equilibrum-->
+    </Algorithm_laminate>
+
+    <Mechanics>    
+        <Filter Type="Default"/>                            <!-- "Default" (hexa) or "no_filter" or "hexa" or "octa" -->
+        <Small_Perturbations Value="true"/>                 <!-- "True" or "False" --> 
+    </Mechanics>
+
+    <User Algo="standard">                                  
+         <P_real Index="1" Value="1.e-6"/>                  <!-- convergence criterion for solving Damage field           -->
+         <P_real Index="2" Value="3000"/>                   <!-- maximum number of iterations for solving Damage field    -->
+         <P_real Index="3" Value="1e-3"/>                 <!--  max value authorised for the damage in composite voxels -->
+         <P_string Index="1" Value="true"/>                 <!-- Convergence Acceleration for solving Damage field -->
+         <P_string Index="2" Value="modifiedLap"/>          <!-- Laplacian operator for Damage problem: defaultLap, modifiedLap -->
+    </User>
+
+</Algorithm_Parameters>
+
