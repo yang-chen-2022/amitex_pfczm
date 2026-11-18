@@ -42,7 +42,7 @@ module material_mod
   use io_amitex_mod
   use error_mod
   use amitex_mod, only         : AMITEXenv          ! variable
-  use field_mod, only          : amx_size           ! pointer
+  use field_mod, only          : amx_size, amx_start ! pointers
   use param_algo_mod , only    : algo_param0, &! initialization variable (used in read_mat, read_mat_coposite)
                                  algo_param    ! pointer
   use algo_functions_mod, only : act3local ! function
@@ -87,7 +87,10 @@ module material_mod
                 deallocate_MatComposite,&
                 deallocate_Interphases,&
                 MIN_MPI_I8,MAX_MPI_I8,MAX_MPI_I,SUM_MPI_I8,SUM_MPI_I8_LARGE,&
-                umat_load, umat_call,initParam_umat ! derniere ligne publique pour tests elementaires
+                umat_load, umat_call,initParam_umat, report_composite_nonconvergence
+
+  integer(kind=INT64) :: composite_limit_count = 0, composite_accepted_count = 0
+  real(mytype) :: composite_max_accepted_residual = 0._mytype
 
 !!------------------------------------------------------------------------------
 !>                                                            TIMES MEASUREMENTS
@@ -653,6 +656,34 @@ end type INFO_VOXCOMP
  end interface
 
 contains
+
+subroutine report_composite_nonconvergence(flog, load_step, iteration)
+  implicit none
+  integer, intent(in) :: flog, load_step, iteration
+  integer(kind=INT64) :: local_counts(2), total_counts(2)
+  real(mytype) :: max_residual
+  integer :: ierr
+
+  local_counts = [composite_limit_count, composite_accepted_count]
+  total_counts = 0
+  max_residual = 0._mytype
+  call MPI_Reduce(local_counts, total_counts, 2, MPI_INTEGER8, MPI_SUM, 0, amitex_mpi_comm, ierr)
+  call MPI_Reduce(composite_max_accepted_residual, max_residual, 1, real_type, MPI_MAX, 0, amitex_mpi_comm, ierr)
+  if (nrank == 0 .and. total_counts(1) > 0) then
+     write(OUTPUT_UNIT,'(A,I0,A,I0,A,2(I0,A),ES12.4)') &
+          "WARNING: composite Newton summary, load step ", load_step, ", global iteration ", iteration, &
+          ": iteration-limit attempts ", total_counts(1), ", accepted unconverged substeps ", total_counts(2), &
+          ", max accepted residual ", max_residual
+     write(flog,'(A,I0,A,I0,A,2(I0,A),ES12.4)') &
+          "WARNING: composite Newton summary, load step ", load_step, ", global iteration ", iteration, &
+          ": iteration-limit attempts ", total_counts(1), ", accepted unconverged substeps ", total_counts(2), &
+          ", max accepted residual ", max_residual
+     flush(OUTPUT_UNIT)
+  end if
+  composite_limit_count = 0
+  composite_accepted_count = 0
+  composite_max_accepted_residual = 0._mytype
+end subroutine report_composite_nonconvergence
 
 
 subroutine write_mate(MATE, iunit, istat, imsg)
@@ -1997,7 +2028,7 @@ subroutine behavior(SIG, SIG0, DEF, DEF0, TEMPRED,DTEMPRED, t_load, KSTEP0,&
                     ! Loi d'homogénéisation de VOIGT
                     call PilotageComposite(i,umatptr(1:mattotP(i)%NPhase),sig_tmp,VarInt(1:nVarInt),&
                                    def0_tmp,ddef_tmp,times,dt,&
-                                   nVarInt,Coeff(1:nCoeff),nCoeff,DFGRD0,DFGRD1,KINC,temp_int1,temp_int2)
+                                   nVarInt,Coeff(1:nCoeff),nCoeff,DFGRD0,DFGRD1,KINC,temp_int1,temp_int2,m)
                     if(KINC < 1) then
                        write(err_msg,"(A,I0,A)") "Probleme lors de l execution de la loi UMATVOIGT &
                             & pour le matériau ",mattotP(i)%numM," (behavior)"
@@ -2009,7 +2040,7 @@ subroutine behavior(SIG, SIG0, DEF, DEF0, TEMPRED,DTEMPRED, t_load, KSTEP0,&
                     ! temp_int2 -> nbre de sous pas de temps ayant été utilisés pour l'intégration (0 = pas de subdivision du pas de temps)
                     call  PilotageComposite(i,umatptr(1:mattotP(i)%Nphase),sig_tmp,VarInt(1:nVarInt),&
                                           def0_tmp,ddef_tmp,times,dt,&
-                                          nVarInt,Coeff(1:nCoeff),nCoeff,DFGRD0, DFGRD1,KINC,temp_int1,temp_int2)
+                                          nVarInt,Coeff(1:nCoeff),nCoeff,DFGRD0, DFGRD1,KINC,temp_int1,temp_int2,m)
 
                     ! Incrémentation des compteurs pour chaque voxel de chaque matériau composite pour tout le pinceau
                     Nit_loc  = Nit_loc + temp_int1 !nombre d'itérations algo multicouche
@@ -2026,7 +2057,7 @@ subroutine behavior(SIG, SIG0, DEF, DEF0, TEMPRED,DTEMPRED, t_load, KSTEP0,&
                     ! TODO (?) : prevoir de passer par PilotageVoxcomp (PilotageLaminate legerement modifie)
                      call PilotageComposite(i,umatptr(1:mattotP(i)%NPhase),sig_tmp,VarInt(1:nVarInt),&
                                    def0_tmp,ddef_tmp,times,dt,&
-                                   nVarInt,Coeff(1:nCoeff),nCoeff,DFGRD0,DFGRD1,KINC,temp_int1,temp_int2)
+                                   nVarInt,Coeff(1:nCoeff),nCoeff,DFGRD0,DFGRD1,KINC,temp_int1,temp_int2,m)
                     !TODO : gestion des erreurs
                     if(KINC < 1) then
                        write(err_msg,"(A,I0,A)") "Probleme lors de l execution de la loi UMATREUSS &
@@ -4970,7 +5001,7 @@ end subroutine apply_field_coeff_function
 !! Notation CAST3M (Voigt, ordre 11 22 33 12 13 23)
 !=======================================================================
 subroutine umatComposite(numM,umatptr,sig,varint,def0,ddef,times,dt,&
-                        nvarint,coeff,ncoeff,DFGRD0, DFGRD1,KINC,Cont)
+                        nvarint,coeff,ncoeff,DFGRD0, DFGRD1,KINC,Cont,voxel,accept_unconverged,last_attempt)
 
   implicit none
   ! Arguments entrée-sortie 
@@ -4985,6 +5016,9 @@ subroutine umatComposite(numM,umatptr,sig,varint,def0,ddef,times,dt,&
   real(mytype), dimension(3,3),intent(in)                 :: DFGRD0, DFGRD1
   integer(kind=INT64),intent(inout)                       :: KINC
   integer(kind=INT32),intent(out)                         :: Cont  
+  integer(kind=INT64),intent(in)                          :: voxel
+  logical,intent(in)                                     :: accept_unconverged
+  logical,intent(in)                                     :: last_attempt
   !----Pointeur de fonction
   type(c_ptr),dimension(int(Coeff(1))), intent(in)        :: umatptr  
   !----Variables de boucle
@@ -5007,9 +5041,11 @@ subroutine umatComposite(numM,umatptr,sig,varint,def0,ddef,times,dt,&
   real(mytype),dimension(6)                               :: DdefIn
   real(mytype),dimension(:,:),allocatable                 :: DdefLoc
   integer                                                 :: Contacv
+  integer                                                 :: lu_status, phase_state_size
+  integer(kind=INT64)                                     :: voxel0, voxel_xyz(3)
   real(mytype)                                            :: Normresidu,NormSigma
   real(mytype), dimension(:,:),allocatable                :: ACT3_U,ACT3_R 
-  logical                                                 :: erreur
+  logical                                                 :: erreur, accepted_iterate
   integer,dimension(:),allocatable                        :: ind_def
 
 !modification_YC//////////////////////////////////////////////////////    
@@ -5027,6 +5063,7 @@ subroutine umatComposite(numM,umatptr,sig,varint,def0,ddef,times,dt,&
   Varint0    = Varint
   ! Initialisation des détecteurs d'erreurs 
   erreur     = .false.
+  accepted_iterate = .false.
 
   ! Nombre de Phases dans le matériau
   nPhases = int(Coeff(1),INT32)
@@ -5183,7 +5220,36 @@ subroutine umatComposite(numM,umatptr,sig,varint,def0,ddef,times,dt,&
      else
         ! Résolution du système linéaire Newton-Raphson modifié
         SecMembre = -Residu
-        call lusolve(DF,SecMembre)    ! résolution du système
+        call lusolve(DF,SecMembre,lu_status)
+        if (lu_status /= 0) then
+           voxel0 = voxel - 1
+           voxel_xyz(1) = amx_start(1) + modulo(voxel0, int(amx_size(1),INT64))
+           voxel_xyz(2) = amx_start(2) + modulo(voxel0 / amx_size(1), int(amx_size(2),INT64))
+           voxel_xyz(3) = amx_start(3) + voxel0 / (int(amx_size(1),INT64)*amx_size(2))
+           write(OUTPUT_UNIT,'(A,I0,A,I0,A,3(I0,1X),A,I0,A,I0)') &
+              "Composite LU failure: rank ", nrank, ", material ", MattotP(numM)%numM, &
+              ", global voxel (1-based) ", voxel_xyz, ", iteration ", Cont, ", status ", lu_status
+           write(OUTPUT_UNIT,'(A,I0,A,2(ES24.16E3,1X))') &
+              "rank ", nrank, " time and substep: ", times(2), dt(1)
+           write(OUTPUT_UNIT,'(A,I0,A,*(ES24.16E3,1X))') "rank ", nrank, " phase fractions: ", Fv
+           phase_state_size = 9
+           if (MattotP(numM)%lawname == "reuss") phase_state_size = 12
+           do i = 1, nPhases
+              indVarint = nPhases + phase_state_size*(i-1) + int(sum(nVarintloc(1:i-1)),INT32)
+              write(OUTPUT_UNIT,'(A,I0,A,I0,2A,*(ES24.16E3,1X))') "rank ", nrank, " phase ", i, " ", &
+                   trim(MattotP(numM)%LawName_comp(i))//" internal variables: ", &
+                   Varint0(indVarint+phase_state_size+1:indVarint+phase_state_size+nVarintloc(i))
+           end do
+           do i = 1, size(DF,1)
+              write(OUTPUT_UNIT,'(A,I0,A,I0,A,*(ES24.16E3,1X))') &
+                   "rank ", nrank, " Newton matrix row ", i, ": ", DF(i,:)
+           end do
+           write(OUTPUT_UNIT,'(A,I0,A,*(ES24.16E3,1X))') "rank ", nrank, " Newton right-hand side: ", SecMembre
+           flush(OUTPUT_UNIT)
+           if (lu_status < 0) call amitex_abort("Non-finite composite Newton system",2)
+           KINC = -10
+           return
+        end if
         ! Actualisation de l'incrément de déformation
         !--------------------------------------------
         DdefLoc(ind_def,2:nPhases) = DdefLoc(ind_def,2:nPhases) + &
@@ -5204,21 +5270,61 @@ subroutine umatComposite(numM,umatptr,sig,varint,def0,ddef,times,dt,&
      
      ! Si on dépasse 200 itérations => NON CONVERGENCE : on sort de la boucle et on arrête le calcul
      ! Marqueur caractéristique KINC = -10
-!/////////////////////////////////////////////////////////////////////
-!modification YC, 2022.03.29
-     !if (Cont >= 200) then
-     !   print *, "(umatComposite) Cont. max reached (200), normresidu/normSigma =", Normresidu/normSigma 
-     !   KINC = -10
-     !   EXIT
-     !end if
      if (Cont >= 1000) then
-         if (nrank==0) print *,'Cont reaches 1000, --> exit, but no KINC=-10'
-         if (nrank==0) print *,'          Normresidu: ', Normresidu
-         EXIT
+         !$OMP ATOMIC UPDATE
+         composite_limit_count = composite_limit_count + 1
+         if (.not. accept_unconverged) then
+            if (last_attempt) then
+               voxel0 = voxel - 1
+               voxel_xyz(1) = amx_start(1) + modulo(voxel0, int(amx_size(1),INT64))
+               voxel_xyz(2) = amx_start(2) + modulo(voxel0 / amx_size(1), int(amx_size(2),INT64))
+               voxel_xyz(3) = amx_start(3) + voxel0 / (int(amx_size(1),INT64)*amx_size(2))
+               write(OUTPUT_UNIT,'(A,I0,A,I0,A,3(I0,1X),A,I0)') &
+                    "Composite Newton iteration limit: rank ", nrank, ", material ", MattotP(numM)%numM, &
+                    ", global voxel (1-based) ", voxel_xyz, ", iterations ", Cont
+               write(OUTPUT_UNIT,'(A,I0,A,2(ES24.16E3,1X))') &
+                    "rank ", nrank, " time and substep: ", times(2), dt(1)
+               write(OUTPUT_UNIT,'(A,I0,A,2(ES24.16E3,1X))') &
+                    "rank ", nrank, " last evaluated residual and tolerance: ", NormResidu, criterion
+               write(OUTPUT_UNIT,'(A,I0,A,*(ES24.16E3,1X))') "rank ", nrank, " phase fractions: ", Fv
+               flush(OUTPUT_UNIT)
+            end if
+            KINC = -10
+            return
+         end if
+
+         if (.not. all(ieee_is_finite(DdefLoc))) &
+              call amitex_abort("Non-finite composite Newton iterate",2)
+         SigMoy = Sig
+         Residu = 0.
+         call CalcResiduComposite(numM,umatptr,SigMoy,Def0,DdefLoc,ncoeff,nvarint,Varint,Varint0, &
+                                  Coeff,times,dt,Fv,Residu,KINC,erreur,RotEps, &
+                                  iRotEps,RotSig,iRotSig,DF)
+         if (erreur .or. KINC /= 1) call amitex_abort("Error evaluating final composite Newton iterate",2)
+         if (.not. all(ieee_is_finite(SigMoy)) .or. .not. all(ieee_is_finite(Varint)) .or. &
+             .not. all(ieee_is_finite(Residu))) &
+              call amitex_abort("Non-finite final composite Newton state",2)
+         NormResidu = sqrt(dot_product(Residu,Residu))
+         NormSigma = sqrt(dot_product(SigMoy,SigMoy))
+         criterion = MattotP(numM)%tol_criteq_composite*algo_param%tol_criteq*NormSigma
+         if (criterion < 1.e-4) criterion = 1.e-4
+         if (.not. ieee_is_finite(NormResidu) .or. .not. ieee_is_finite(criterion)) &
+              call amitex_abort("Non-finite final composite Newton residual",2)
+         if (NormResidu >= criterion) then
+            !$OMP CRITICAL (composite_accepted_summary)
+            composite_accepted_count = composite_accepted_count + 1
+            composite_max_accepted_residual = max(composite_max_accepted_residual, NormResidu)
+            !$OMP END CRITICAL (composite_accepted_summary)
+         end if
+         if (MattotP(numM)%lawname == "laminate") DdefLoc = matmul(RotEps,DdefLoc)
+         if (.not. all(ieee_is_finite(DdefLoc))) &
+              call amitex_abort("Non-finite composite Newton iterate after rotation",2)
+         accepted_iterate = .true.
+         exit
      end if
-!/////////////////////////////////////////////////////////////////////
      
   END DO
+  if (KINC == -20) return
 
     
      !!!!! ATTENTION : après convergence, l'incrément de déformation solution Ddefloc est exprimé dans le repère
@@ -5244,6 +5350,8 @@ subroutine umatComposite(numM,umatptr,sig,varint,def0,ddef,times,dt,&
         Varint(indVarint+j) = Varint0(indVarint+j) + DdefLoc(ind_def(j),i) 
      end do
   end do
+  if (accepted_iterate .and. .not. all(ieee_is_finite(Varint))) &
+       call amitex_abort("Non-finite final composite internal variables",2)
 
        
   ! Desallocation des tableaux NVarIntloc, Fv  
@@ -5522,7 +5630,7 @@ end subroutine init_newton
 !!
 !==============================================================================
 subroutine  PilotageComposite(numM,umatptr,sig,varint,def0,ddef,times,dt,&
-                        nvarint,coeff,ncoeff,DFGRD0, DFGRD1,KINC,Cont,Nincrements)
+                        nvarint,coeff,ncoeff,DFGRD0, DFGRD1,KINC,Cont,Nincrements,voxel)
 
   implicit none
   ! Arguments entrée-sortie 
@@ -5538,6 +5646,7 @@ subroutine  PilotageComposite(numM,umatptr,sig,varint,def0,ddef,times,dt,&
   integer(kind=8),intent(inout)                          :: KINC
   integer(kind=INT32),intent(out)                        :: Cont
   integer(kind=INT32),intent(out)                        :: Nincrements
+  integer(kind=INT64),intent(in)                         :: voxel
   !----Pointeur de fonction
   type(c_ptr),dimension(int(Coeff(1))), intent(in)        :: umatptr 
   !----Variables de pilotage
@@ -5552,6 +5661,7 @@ subroutine  PilotageComposite(numM,umatptr,sig,varint,def0,ddef,times,dt,&
   character(len=200)                                     :: err_msg
   !----Autres
   integer(kind=INT32)                                    :: nIt  
+  logical                                               :: accept_unconverged
 
   ! Initialisations
   !----------------
@@ -5562,11 +5672,15 @@ subroutine  PilotageComposite(numM,umatptr,sig,varint,def0,ddef,times,dt,&
   Sig0    = Sig
   Varint0 = Varint
   Nincrements = 0  
+  accept_unconverged = trim(MattotP(numM)%lawname) == "laminate" .and. &
+                       algo_param%accept_unconverged_laminate
  
   ! Premier appel au comportement
   !-------------------------------------------------------------------
   call  umatComposite(numM,umatptr,sig,varint,def0,ddef,times,dt,&
-       nvarint,coeff,ncoeff,DFGRD0, DFGRD1,KINC,Cont)
+       nvarint,coeff,ncoeff,DFGRD0, DFGRD1,KINC,Cont,voxel, &
+       accept_unconverged .and. MattotP(numM)%Nmax_subdivision_composite <= 0, &
+       MattotP(numM)%Nmax_subdivision_composite <= 0)
   
   
   ! En cas de non convergence : subdivision du pas de temps
@@ -5588,6 +5702,7 @@ subroutine  PilotageComposite(numM,umatptr,sig,varint,def0,ddef,times,dt,&
      KINC = 1 
      ! Nouveaux incréments  de temps et de déformation:
      ddt(1) = dt(1)/Nincrements
+     ddt(2) = dt(2)
      dddef  = DDef /Nincrements  
      ! Déformation initiale et instant initial réinitialisés
      def00  = Def0
@@ -5613,8 +5728,10 @@ subroutine  PilotageComposite(numM,umatptr,sig,varint,def0,ddef,times,dt,&
            ddt(2) = ddt(1)
         end if
 
-        call  umatComposite(numM,umatptr,sig,varint,def00,dddef,times,ddt,&
-             nvarint,coeff,ncoeff,DDFGRD0, DDFGRD1,KINC,nIt)
+        call  umatComposite(numM,umatptr,sig,varint,def00,dddef,times0,ddt,&
+             nvarint,coeff,ncoeff,DDFGRD0, DDFGRD1,KINC,nIt,voxel, &
+             accept_unconverged .and. j == MattotP(numM)%Nmax_subdivision_composite, &
+             j == MattotP(numM)%Nmax_subdivision_composite)
 
         Cont = Cont + nIt
         nIt  = 0
@@ -6255,6 +6372,7 @@ subroutine  CalcResiduComposite(numM,umatptr,SigMoy,Def0,DdefLoc,ncoeff,nvarint,
   
   !initialisation
   indVarint = 0 ! avoid gcc-warning
+  erreur = .false.
   umat_only0 = .false.
   if (present(umat_only)) umat_only0 = umat_only
   
@@ -6390,8 +6508,8 @@ subroutine  CalcResiduComposite(numM,umatptr,SigMoy,Def0,DdefLoc,ncoeff,nvarint,
            call amitex_abort(err_msg,0)
            erreur = .true.
            KINC = -20
+           exit
         end if
-        exit
      end do
 
      do h=1,int(nVarintloc(i),INT32)

@@ -633,14 +633,14 @@ def saveVolvtk_amitex(
     with path.open("wb") as stream:
         header = (
             "# vtk DataFile Version 4.2\n"
-            "tomo_Volume\n"
+            "mesh_grid\n"
             "BINARY\n"
             "DATASET STRUCTURED_POINTS\n"
             f"DIMENSIONS {dimensions[0]} {dimensions[1]} {dimensions[2]}\n"
             "ORIGIN 0 0 0\n"
             f"SPACING {float(spacing[0]):e} {float(spacing[1]):e} {float(spacing[2]):e}\n"
             f"{'CELL_DATA' if choice == 'cell' else 'POINT_DATA'} {data_count}\n"
-            f"SCALARS tomo_Volume {vtk_type}\n"
+            f"SCALARS data {vtk_type}\n"
             "LOOKUP_TABLE default\n"
         )
         stream.write(header.encode("ascii"))
@@ -654,8 +654,14 @@ def write_composite_voxel_data(
     surfaces: np.ndarray,
     normals: np.ndarray,
     tangents: np.ndarray,
+    zone2: np.ndarray | None = None,
 ) -> None:
-    """Write the AMITEX composite-voxel files produced by the MATLAB scripts."""
+    """Write the AMITEX composite-voxel files produced by the MATLAB scripts.
+
+    ``zone2`` gives the zone number of each interface voxel (default: all 1). Use
+    ``np.arange(1, count + 1)`` to let every interface voxel carry its own
+    ``Constant_Zone`` coefficient values.
+    """
     directory = Path(directory)
     directory.mkdir(parents=True, exist_ok=True)
     count = len(positions)
@@ -663,6 +669,11 @@ def write_composite_voxel_data(
         raise ValueError("Composite voxel arrays have inconsistent lengths")
     if surfaces.shape not in {(count,), (count, 1)}:
         raise ValueError("Surface array has inconsistent length")
+    if zone2 is None:
+        zone2 = np.ones(count, dtype=np.uint64)
+    zone2 = np.asarray(zone2).reshape(-1)
+    if zone2.shape != (count,) or (count and zone2.min() < 1):
+        raise ValueError("zone2 must hold one positive zone number per composite voxel")
     values = {
         "fv1.bin": (fractions[:, 0], "double"),
         "fv2.bin": (1.0 - np.sum(fractions, axis=1), "double"),
@@ -676,7 +687,7 @@ def write_composite_voxel_data(
         "S12.bin": (np.asarray(surfaces).reshape(-1), "double"),
         "pos.bin": (np.asarray(positions, dtype=np.uint64), "uint64"),
         "zone1.bin": (np.ones(count, dtype=np.uint64), "uint64"),
-        "zone2.bin": (np.ones(count, dtype=np.uint64), "uint64"),
+        "zone2.bin": (zone2.astype(np.uint64), "uint64"),
         "zone3.bin": (np.ones(count, dtype=np.uint64), "uint64"),
     }
     for name, (data, kind) in values.items():

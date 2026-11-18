@@ -54,8 +54,8 @@ contains
 !!               si 'r' n'est pas present, tous les processus sont impliques
 !!
 !!         IMPORTANT
-!!             en cas de level 2, meme si r est present, 
-!!             TOUS les processus appellent MPI_ABORT 
+!!             en cas de level 2, le processus appelant interrompt
+!!             tous les processus du communicateur avec MPI_ABORT.
 !!
 !!------------------------------------------------------------------------------
 !! MODIFICATIONS :
@@ -103,7 +103,7 @@ use, intrinsic :: iso_fortran_env, only : stdout=>output_unit
     error=.TRUE.
     err_type = " error : "
     if(rank==r0) write(stdout,"(A,I0,2A)") "AMITEX_FFTP ERROR : rank ",rank,err_type,trim(msg)
-    call MPI_BARRIER(amitex_mpi_comm,ierror)
+    flush(stdout)
     call check_amitex_abort()
  end if
  

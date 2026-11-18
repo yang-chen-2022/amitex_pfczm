@@ -143,6 +143,7 @@ module param_algo_mod
      !> Acceleration de convergence
      logical                                 :: acc_CV_laminate 
      logical                                 :: acc_CV_reuss 
+     logical                                 :: accept_unconverged_laminate = .false.
      !> Tolerance sur le critere d'equilibre (a multiplier par le critere global tol_criteq)
      !>                    (par defaut 0.01)
      real(mytype)                            :: tol_criteq_laminate 
@@ -430,6 +431,7 @@ subroutine print_param_algo_composite(Flog,nrank0)
   write(Flog,"(A,L7)")    "   Acceleration de convergence : ", algo_param0%acc_CV_laminate
   write(Flog,"(A,A)")     "   Type d'initialisation : ", algo_param0%Init_laminate
   write(Flog,"(A,I4)")    "   Nombre max de sous-decoupage : ", algo_param0%Nmax_subdivision_laminate
+  write(Flog,"(A,L7)")    "   Accept unconverged laminate after retries : ", algo_param0%accept_unconverged_laminate
   write(Flog,"(A,A)")     "   Type de matrice tangente utilise : ", algo_param0%Jacobian_type_laminate
   write(Flog,"(A,E15.8)") "   Perturbation si tangente numerique : ", algo_param0%Perturbation_laminate
  
@@ -1083,6 +1085,7 @@ subroutine read_param_composite(file_algo)
   integer                      :: i
 
   fi => parseFile(trim(file_algo))
+  algo_param0%accept_unconverged_laminate = .false.
 
  !Boucle sur les 2 choix possibles (1 : laminate, 2 : reuss)
  do i = 1,2
@@ -1187,6 +1190,19 @@ subroutine read_param_composite(file_algo)
        if (i==2) algo_param0%Nmax_subdivision_reuss = 5
        call amitex_abort("Nombre de subdivision maximale du pas de temps pour intégration du modèle &
             & "//trim(nomvc)//" : valeur par defaut : 5 <=> 32 sous incréments (read_param_composite)",-1,0)
+    end if
+
+    if (i == 1) then
+       elem_list => getElementsByTagName(cur_node, "Accept_unconverged")
+       if (getLength(elem_list) > 0) then
+          cur_elem => item(elem_list, 0)
+          call get_str_xml(cur_elem, "Value", tmp_string, 1)
+          if (trim(tmp_string) == "true") then
+             algo_param0%accept_unconverged_laminate = .true.
+          elseif (trim(tmp_string) /= "false") then
+             call amitex_abort("Accept_unconverged must be true or false (read_param_composite)",2)
+          end if
+       end if
     end if
 
     !! On recupere le type de matrice tangente choisie par l'utilisateur

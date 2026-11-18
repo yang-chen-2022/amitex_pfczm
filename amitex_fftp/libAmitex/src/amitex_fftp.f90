@@ -136,7 +136,7 @@ program amitex_fftp
   call write_stdout0(achar(10)//LOGO//achar(10))
 
   ! write version on stdout
-  version="x.y.z" ! do not modify this line
+  version="12.0.0"
   call write_stdout0("VERSION "//trim(version))
 
 !!==============================================================================

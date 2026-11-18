@@ -28,6 +28,7 @@ MODULE linear_mod
 ! ***********************************************************
 
   use ISO_FORTRAN_ENV
+  use, intrinsic :: ieee_arithmetic, only : ieee_is_finite
 
 #ifdef NEW_2DECOMP
   use decomp_2d_constants, only : mytype
@@ -89,62 +90,70 @@ CONTAINS
 !! in Idet if the number of premutations is 
 !! even or odd.
 !  *                                           *
-  Subroutine lu(M,Ipiv,Idet)
+  Subroutine lu(M,Ipiv,Idet,info)
 !  *                                           *
 !  *********************************************
 !  *********************************************
 
     Real (mytype), Intent (inout) :: M(:,:)
-    Integer, Intent (out) :: Ipiv(:), Idet
+    Integer, Intent (out) :: Ipiv(:), Idet, info
 
-    Integer :: I, J, Idim
+    Real (mytype) :: row(Size(M,2))
+    Integer :: I, J, Idim, pivot, tmp
 
     Idim = Size(M,1)
-    ! First make pivoting
-    CALL Pivoting(M, Ipiv, Idet)
+    Idet = 1
+    info = 0
+    do I = 1, Idim
+       Ipiv(I) = I
+    end do
+    if (.not. all(ieee_is_finite(M))) then
+       info = -1
+       return
+    end if
 
-    ! NOW: LU Decomposition
-    ! The first step is done apart
-    Do J = 2, Idim
-       M(J, 1) = M(J, 1) / M(1, 1)
-    End Do
-
-    Do I = 2, Idim
-       M(I, I) = M(I, I) - &
-            & Dot_Product(M(I,1:I-1),M(1:I-1, I)) 
-
-       Do J = i+1, Idim
-          M(I, J) = M(I, J) - Dot_Product(M(I, 1:I-1),&
-               & M(1:I-1, J))
-          M(J, I) = M(J, I) - Dot_Product(M(J, 1:I-1)&
-               &,M(1:I-1, I))
-
-          If (Abs(M(I,I)) < Epsilon(1.0_mytype)) then
-             if(nrank==0) write(OUTPUT_UNIT,*) "Erreur LU : M"
-             if(nrank==0) write(OUTPUT_UNIT,'(6(F10.7))') M
-             call amitex_abort("Erreur LU",2)
-             !CALL Abort
-            end if            
-          M(J, I) = M(J, I) / M(I, I)
-       End Do
-    End Do
-
-    Return
+    do I = 1, Idim
+       pivot = maxloc(abs(M(I:Idim,I)), dim=1) + I - 1
+       if (M(pivot,I) == 0._mytype) then
+          info = I
+          return
+       end if
+       if (pivot /= I) then
+          row = M(I,:)
+          M(I,:) = M(pivot,:)
+          M(pivot,:) = row
+          tmp = Ipiv(I)
+          Ipiv(I) = Ipiv(pivot)
+          Ipiv(pivot) = tmp
+          Idet = -Idet
+       end if
+       do J = I+1, Idim
+          M(J,I) = M(J,I) / M(I,I)
+          M(J,I+1:Idim) = M(J,I+1:Idim) - M(J,I)*M(I,I+1:Idim)
+       end do
+       if (.not. all(ieee_is_finite(M))) then
+          info = -1
+          return
+       end if
+    end do
   End Subroutine lu
 
 !  *********************************************
 !> Solve a linear set of equations using LU 
-!! decomposition. Both M and b are overwritten
+!! decomposition. Both M and b are overwritten on success.
+!! Optional info returns zero on success, the zero pivot index on a singular
+!! matrix, or -1 for non-finite data. On failure M and b are restored.
 !  *                                           *
-  Subroutine LUSolve(M, b)
+  Subroutine LUSolve(M, b, info)
 !  *                                           *
 !  *********************************************
 !  *********************************************
 
     Real (mytype), Intent (inout) :: M(:,:), b(:)
+    Integer, Intent (out), optional :: info
 
-    Real (mytype) :: bcp(Size(M,1))
-    Integer :: Ipiv(Size(M,1)), Id, Idim, I
+    Real (mytype) :: bcp(Size(M,1)), original(Size(M,1),Size(M,2))
+    Integer :: Ipiv(Size(M,1)), Id, Idim, I, status
 
     Idim = Size(M,1)
     if(Idim < 1) then
@@ -152,24 +161,51 @@ CONTAINS
        !call abort
        call amitex_abort("Matrice vide. Impossible d'inverser le systeme.",2)
     end if
-    CALL LU(M, Ipiv, Id)
+    if(size(M,2) /= Idim .or. size(b) /= Idim) &
+       call amitex_abort("LUSolve: incompatible matrix or vector dimensions",2)
+    original = M
     bcp = b
-    ! Now we Permutate b
-    Do I = 1, Idim
-       b(I) = bcp(Ipiv(I))
-    End Do
-    ! First solve Lx = b
-    Do I = 2, Idim
-       b(I) = b(I) - Dot_Product(M(I,1:I-1),b(1:I-1))
-    End Do
+    status = 0
+    if (.not. all(ieee_is_finite(b))) then
+       status = -1
+    else
+       CALL LU(M, Ipiv, Id, status)
+    end if
+    if (status == 0) then
+       ! Now we Permutate b
+       Do I = 1, Idim
+          b(I) = bcp(Ipiv(I))
+       End Do
+       ! First solve Lx = b
+       Do I = 2, Idim
+          b(I) = b(I) - Dot_Product(M(I,1:I-1),b(1:I-1))
+       End Do
 
-    ! Now solve Ux = b
-    b(Idim) = b(Idim) / M(Idim, Idim)
-    Do I = Idim - 1, 1, -1
-       b(I) = b(I) - Dot_Product(M(I, I+1:Idim),b(I+1:Idim))
-       b(I) = b(I) / M(I, I)
-    End Do
-    Return
+       ! Now solve Ux = b
+       b(Idim) = b(Idim) / M(Idim, Idim)
+       Do I = Idim - 1, 1, -1
+          b(I) = b(I) - Dot_Product(M(I, I+1:Idim),b(I+1:Idim))
+          b(I) = b(I) / M(I, I)
+       End Do
+       if (.not. all(ieee_is_finite(b))) status = -1
+    end if
+
+    if (status /= 0) then
+       M = original
+       b = bcp
+       if (.not. present(info)) then
+          write(OUTPUT_UNIT,'(A,I0,A,I0)') "LU failure: rank ", nrank, ", pivot/status ", status
+          write(OUTPUT_UNIT,'(A)') "Original matrix (rows):"
+          do I = 1, Idim
+             write(OUTPUT_UNIT,'(*(ES24.16E3,1X))') original(I,:)
+          end do
+          write(OUTPUT_UNIT,'(A)') "Right-hand side:"
+          write(OUTPUT_UNIT,'(*(ES24.16E3,1X))') bcp
+          flush(OUTPUT_UNIT)
+          call amitex_abort("Erreur LU",2)
+       end if
+    end if
+    if (present(info)) info = status
   End Subroutine LUSolve
 
 !  *********************************************

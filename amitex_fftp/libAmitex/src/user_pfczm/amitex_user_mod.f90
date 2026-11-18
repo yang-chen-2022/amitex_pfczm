@@ -995,6 +995,7 @@ subroutine damageCV_adhoc()
   implicit none
   real(mytype) :: kk, dBulk, dInterphase
   integer :: i,j,k,m,id,ii,l
+  kk = 0.999
   do i=1,size(mattotP)
      !indice minimum de zone
      l=1

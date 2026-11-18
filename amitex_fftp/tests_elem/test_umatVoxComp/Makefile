@@ -26,7 +26,10 @@ OBJ4 = test_CC.o
 OBJ5 = test_umatvoigtCC.o
 OBJ6 = test_umatreussCC.o
 
-all: test_elasiso test_umatvoigt test_umatreuss test_CC test_umatvoigtCC test_umatreussCC
+all: test_elasiso test_umatvoigt test_umatreuss test_CC test_umatvoigtCC test_umatreussCC test_linear
+
+test_linear: test_linear.o
+	$(F90) -o $@ test_linear.o $(LIBS) $(DEBUG)
 
 test_elasiso: $(OBJ1)
 	$(F90) -o $@ $(OBJ1) $(LIBS) $(FoX) $(DEBUG)
@@ -47,7 +50,7 @@ test_umatreussCC: $(OBJ6)
 	$(F90) -o $@ $(OBJ6) $(LIBS) $(FoX) $(DEBUG)
 
 clean:
-	rm -f *.o test_elasiso test_umatvoigt test_umatreuss test_CC test_umatvoigtCC test_umatreussCC
+	rm -f *.o test_elasiso test_umatvoigt test_umatreuss test_CC test_umatvoigtCC test_umatreussCC test_linear
 
 %.o : %.f90
 	$(F90) $(INCLUDE) $(OPTIONS) $(F90FLAGS) $(DEBUG) -c $<

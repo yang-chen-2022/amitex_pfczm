@@ -79,6 +79,38 @@ The installation script and example Makefiles contain platform-specific
 settings; inspect them before building rather than assuming their defaults
 match your system.
 
+After changing the core solver, rebuild the AMITEX library and the PFCZM
+executable from the repository root:
+
+```sh
+make -B -C amitex_fftp/libAmitex/src all
+make -B -C amitex_fftp/libAmitex/src/user_pfczm lAmitex=../..
+```
+
+Composite Newton solves use partial-pivoting LU. If a pivot is zero, the solver
+prints the failing rank, 1-based global voxel indices, phase fractions and
+internal variables, and the original Newton matrix and right-hand side. It
+then retries with smaller local substeps, up to `Nmax_subdivision`. By default,
+the solver aborts if these retries fail. For diagnostic runs only, add
+`<Accept_unconverged Value="true"/>` inside `Algorithm_laminate` to accept a
+finite last Newton iterate after reaching the iteration limit at the maximum
+subdivision. Remaining substeps are still computed. Every ten global
+iterations and at the end of the load step, a warning summarizes the number of
+local iteration-limit attempts, the number of accepted unconverged substeps
+(not unique voxels), and their maximum residual across MPI ranks since the
+previous report.
+Zero LU pivots still cause retries and eventually abort; non-finite states
+abort immediately. Accepted iterates can violate local traction equilibrium,
+so subsequent results and VTK output are not validated solutions.
+If the iteration limit ultimately causes an abort, the failing rank prints the
+voxel, substep, last evaluated residual, tolerance, and phase fractions.
+A small nonzero pivot is not itself a condition-number
+test; use the printed matrix for further diagnosis. Output from different MPI
+ranks can be interleaved.
+
+The retry does not force a VTK snapshot of a failed load step. Schedule VTK
+output on earlier converged steps to retain fields near a failure.
+
 To clean the generated AMITEX, PFCZM, and material-behaviour binaries and
 object/module files, run `./clean` from the repository root.
 
