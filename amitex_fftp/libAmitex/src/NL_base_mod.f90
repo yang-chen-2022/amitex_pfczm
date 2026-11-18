@@ -1340,6 +1340,7 @@ if (add_def_star .AND. load_incr/=0 .and. algo_param%init_Def=='default')  Def =
                  write(OUTPUT_UNIT,"(I8,A)") nIt, " iterations"
                  write (Flog,"(6E15.8)") times_f%fft, times_f%ifft, times_m%behavior, times_g%apply, times_g%crit, times_io%wvtk
               end if
+              if (testComposite) call report_composite_nonconvergence(Flog, ind_tps, nIt)
               t10 = MPI_WTIME()
            end if
 
@@ -1411,6 +1412,7 @@ if (add_def_star .AND. load_incr/=0 .and. algo_param%init_Def=='default')  Def =
         !                                                   FIN BOUCLE CONVERGENCE FORCEE
         !================================================================================
 
+  if (testComposite) call report_composite_nonconvergence(Flog, ind_tps, nIt)
   call MPI_BARRIER(amitex_mpi_comm,ierror)
   times_b%unpas = times_b%unpas + MPI_WTIME()- t_ini
 
