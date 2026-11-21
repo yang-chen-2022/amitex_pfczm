@@ -108,8 +108,20 @@ A small nonzero pivot is not itself a condition-number
 test; use the printed matrix for further diagnosis. Output from different MPI
 ranks can be interleaved.
 
-The retry does not force a VTK snapshot of a failed load step. Schedule VTK
-output on earlier converged steps to retain fields near a failure.
+If composite retries are exhausted, the ranks collectively write the selected
+VTK fields before aborting: `*_previous_*` contains the last completed load
+step (or the initial/restart state), and `*_failed_*` contains the partially
+evaluated current iteration. `*_failed_status_<step>.vtk` marks voxels as
+0 = evaluated, 1 = failed, or 2 = skipped after a failure on that rank.
+Failed and skipped voxels retain older values, and even evaluated voxels can
+be unconverged; the failed snapshot is diagnostic only. The previous step can
+also include accepted unconverged composite substeps if that option was enabled.
+No failed-step `.std` row is written. Snapshots are produced for exhausted
+composite retries, not immediate failures such as non-finite systems. The
+selected previous fields are kept in memory throughout composite simulations.
+After building the PFCZM executable and example material behaviour, the
+two-rank failure snapshot regression can be run with
+`python3 amitex_fftp/tests_elem/test_umatVoxComp/test_failure_vtk.py`.
 
 To clean the generated AMITEX, PFCZM, and material-behaviour binaries and
 object/module files, run `./clean` from the repository root.

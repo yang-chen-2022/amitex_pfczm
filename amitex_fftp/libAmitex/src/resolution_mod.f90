@@ -33,13 +33,13 @@ module resolution_mod
 
   use io_amitex_mod,      only : write_stdout0 ! function
   use io2_amitex_mod,     only : times_io,& ! pointer variable
-                                 writeVTK   ! function
+                                 writeVTK, capture_previous_vtk
   use algo_functions_mod, only : sigToPK1   ! function
   use param_algo_mod,     only : algo_param, user_param ! pointer variable
   use loading_mod,        only : LOCALLOAD,& !Type
                                  local_load, local_loadD, load, extract,&  ! Pointer Variables
                                  get_current_loading, get_current_loadingD ! Functions
-  use material_mod,       only : mattotP, times_m, VCinfo ! Pointer Variables
+  use material_mod,       only : mattotP, times_m, VCinfo, testComposite ! Pointer Variables
   use green_mod,          only : times_g                  ! Pointer Variables
   use error_mod,          only : amitex_abort, check_amitex_abort ! Functions
   use amitex_mod,         only : Def, Def0, Sig, Sig0, PK1, FluxD, FluxD0, CVFORsauv, Flog ! Pointer Variables
@@ -249,6 +249,7 @@ subroutine resolution_NL_base()
 
   integer               :: i,j                      !< indice de boucle 
   logical               :: tmp_bool
+  logical               :: previous_vtk_initialized
   real(mytype)          :: tmp_real
   integer,dimension(2)  :: tmp_int
 
@@ -264,6 +265,7 @@ subroutine resolution_NL_base()
 
   nIttot= 0
   nIt0 = 0
+  previous_vtk_initialized = .false.
 
   if (algo_param%Mechanics) then
     defMoy=0                 !< contraintes et deformations moyennes
@@ -354,6 +356,11 @@ subroutine resolution_NL_base()
         if(load_incr == 0) ind_tps=ind_tps-1  ! on n'incremente pas ind_tps pour le pas de temps fictif
         
         call update_local_load(load_n,load_incr,defMoy00, sigMoy00, gradQDMoy00, FluxDMoy00)
+
+        if (testComposite .and. .not. previous_vtk_initialized) then
+           call capture_previous_vtk(max(0,ind_tps-1))
+           previous_vtk_initialized = .true.
+        end if
 
         !================================================================================
         !                                                             APPEL UNPAS_NL_BASE
@@ -503,6 +510,7 @@ subroutine resolution_NL_base()
               call writeVTK(ind_tps)
 
            end if
+           if (testComposite) call capture_previous_vtk(ind_tps)
         end if
         
 !print *,"AV ACTUALISATION DE LA CONTRAINTE", nrank

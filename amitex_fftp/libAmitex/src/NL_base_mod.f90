@@ -91,6 +91,31 @@ module NL_base_mod
   
 contains
 
+subroutine abort_composite_with_vtk(ind_tps, iteration)
+  implicit none
+  integer, intent(in) :: ind_tps, iteration
+  integer :: ierr
+  character(len=32) :: step_string
+
+  if (nrank == 0) then
+     write(OUTPUT_UNIT,'(A,I0,A,I0)') &
+          "Composite failure: writing diagnostic partial iteration ", iteration, " at load step ", ind_tps
+     write(OUTPUT_UNIT,'(A,I0)') "Previous completed snapshot step: ", previous_vtk_step
+     write(OUTPUT_UNIT,'(A)') "Failure mask: 0 evaluated, 1 failed, 2 skipped; partial fields are not converged."
+     write(Flog,'(A,I0,A,I0)') "Composite failure: partial iteration ", iteration, ", load step ", ind_tps
+     write(Flog,'(A,I0)') "Previous completed snapshot step: ", previous_vtk_step
+     flush(OUTPUT_UNIT)
+     flush(Flog)
+  end if
+  call writeVTK(previous_vtk_step, "_previous", .true.)
+  call writeVTK(ind_tps, "_failed")
+  write(step_string,'(I0)') ind_tps
+  call print_field_vtk(composite_failure_mask, trim(fic_vtk)//"_failed_status_"//trim(step_string)//".vtk", &
+                       "composite_failure_status")
+  call MPI_BARRIER(amitex_mpi_comm, ierr)
+  call amitex_abort("Composite calculation failed; diagnostic VTK snapshots written",2,0)
+end subroutine abort_composite_with_vtk
+
 !===========================================================================================================
 !!==========================================================================================================
 !> unpas_NL_base : Schema de base pour resoudre un probleme non lineaire
@@ -553,6 +578,10 @@ if (add_def_star .AND. load_incr/=0 .and. algo_param%init_Def=='default')  Def =
                            local_load%dt(TPRED_deb:TPRED_fin),local_load%t_load,KSTEP,&
                            nSub_laminate_temp,nIncr_laminate_temp,nIt_laminate_temp,VCinfo%nCall_lam_pas)
  
+             end if
+             if (composite_behavior_failed) then
+                if (.not. algo_param%HPP) call SigToPK1(Sig,Def,PK1)
+                call abort_composite_with_vtk(ind_tps, 0)
              end if
            if(.not. algo_param%HPP) then
               call SigToPK1(Sig,Def,PK1)
@@ -1262,6 +1291,10 @@ if (add_def_star .AND. load_incr/=0 .and. algo_param%init_Def=='default')  Def =
                            local_load%dt(TPRED_deb:TPRED_fin),local_load%t_load,KSTEP,&
                            nSub_laminate_temp,nIncr_laminate_temp,nIt_laminate_temp)
              end if
+             if (composite_behavior_failed) then
+                if (.not. algo_param%HPP) call SigToPK1(Sig,Def,PK1)
+                call abort_composite_with_vtk(ind_tps, nIt)
+             end if
              if(.not. algo_param%HPP) then
                 call SigToPK1(Sig,Def,PK1)
              end if
@@ -1368,6 +1401,11 @@ if (add_def_star .AND. load_incr/=0 .and. algo_param%init_Def=='default')  Def =
              call behavior(SIG,SIG0,CVFORsauv%Def,DEF0,local_load%t0(TPRED_deb:TPRED_fin),&
                         local_load%dt(TPRED_deb:TPRED_fin),local_load%t_load,KSTEP,&
                         nSub_laminate_temp,nIncr_laminate_temp,nIt_laminate_temp)
+          end if
+          if (composite_behavior_failed) then
+             Def = CVFORsauv%Def
+             if (.not. algo_param%HPP) call SigToPK1(Sig,Def,PK1)
+             call abort_composite_with_vtk(ind_tps, nIt)
           end if
 
           !--On modifie les variables internes et la contrainte en debut de pas de temps

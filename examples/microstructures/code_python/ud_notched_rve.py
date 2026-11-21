@@ -3,7 +3,7 @@
 Geometry (all parameters are defined in the PARAMETERS block below):
   * periodic along x; fibres are never cut by the y = 0 / y = y_length borders;
   * a void layer at the top (y = y_length) of the RVE;
-  * a notch in the mid-plane z = z_length / 2 starting at the x = 0 edge;
+  * a notch along x in the mid-plane z = z_length / 2, starting at y = 0;
   * voxels cut by a fibre surface are exported as AMITEX composite voxels;
   * the AMITEX inputs (mat.xml, load.xml, algo.xml, script.sh) are generated too.
 
@@ -54,9 +54,9 @@ VOID_THICKNESS = VOXEL_SIZE*10    # void layer thickness at y = Y_LENGTH (0 disa
 INTERPHASE_FRACTION = 1e-3  # fibre/matrix interphase fraction in composite voxels
 
 NOTCH = True
-NOTCH_LENGTH = 0.1*X_LENGTH      # notch extent from the x = 0 edge
+NOTCH_LENGTH = 0.1*Y_LENGTH      # notch extent from the y = 0 edge
 NOTCH_THICKNESS = 3*VOXEL_SIZE    # notch opening in z, centred on z = Z_LENGTH / 2
-NOTCH_CUTS_FIBRES = False  # False: only matrix is removed; True: fibres too
+NOTCH_CUTS_FIBRES = True  # False: only matrix is removed; True: fibres too
 
 MAX_TRIALS = 100          # relaxation iterations per attempt
 MAX_ATTEMPTS = 100         # new radius samples if overlaps remain
@@ -111,9 +111,9 @@ def exponential(v_top: float, v_far: float, decay_length: float):
 #   sigma_n=exponential(50.0, 100.0, 0.02)
 #   GcI=lambda d: 0.002 * (1 + d / Y_LENGTH)
 INTERFACE = dict(
-    sigma_n=100.0, GcI=0.001,       # normal strength [MPa], fracture energy [N/mm]
-    sigma_t=153, GcII=0.001,      # tangential strength, fracture energy
-    eta=0.99, mu=0.2,
+    sigma_n=75.0, GcI=1.6e-5,       # normal strength [MPa], fracture energy [N/mm]
+    sigma_t=153.0, GcII=1.6e-5,      # tangential strength, fracture energy
+    eta=0.999, mu=0.0,
 )
 # Reference medium: set both, or leave both None to use 0.5 * (min + max) of the
 # Lame coefficients (lambda, mu separately) over the pore, matrix and fibre.
@@ -129,7 +129,7 @@ LOADINGS = [
     dict(nincr=10, tfinal=100, outputs=[10],
          load={**_FREE, "zz": ("Strain", 0.01)}),
     dict(nincr=500, tfinal=2100,
-         outputs=[50, 100, 150, 200, 250, 300, 350, 400, 450, 500],
+         outputs=[50, 100, 150, 160, 170, 180, 190, 200, 210, 220, 230, 240, 250, 300, 350, 400, 450, 500],
          load={**_FREE, "zz": ("Strain", 0.11)}),
 ]
 TEMPERATURE = 20.0
@@ -141,7 +141,7 @@ VTK_INTVARS = {1: [], 2: [1], 3: [1], 4: [], 5: [28]}
 # Algorithm
 ALGO = dict(
     conv_criterion=1e-4, conv_acceleration=True, nitermax=3000,
-    forced=False, nit_cvfor=1000, ncvfor=5,
+    forced=True, nit_cvfor=1000, ncvfor=5,
     laminate_nmax_subdivision=8,
     laminate_accept_unconverged=True,
     laminate_jacobian="numerical",   # mfront_tangent, elastic, mfront_secant, numerical
@@ -154,7 +154,7 @@ ALGO = dict(
 )
 
 # Run
-N_PROCS = 10
+N_PROCS = 16
 AMITEX_EXE = "../amitex_fftp/libAmitex/src/user_pfczm/amitex_fftp"   # relative to SIM_DIR
 ENV_SCRIPT = "../amitex_fftp/env_amitex.sh"                        # relative to SIM_DIR
 RESULTS_DIR = "results/ud_notched"                                  # relative to SIM_DIR
@@ -471,8 +471,8 @@ def main() -> None:
     if NOTCH:
         z = np.arange(nz)[None, None, :] + 0.5
         in_slab = np.abs(z * h - Z_LENGTH / 2) < NOTCH_THICKNESS / 2
-        x = (np.arange(nx)[None, :, None] + 0.5) * h
-        region = (x < NOTCH_LENGTH) & in_slab
+        y = (np.arange(ny)[:, None, None] + 0.5) * h
+        region = (y < NOTCH_LENGTH) & in_slab
         composite = np.zeros(volume.shape, dtype=bool)
         composite.ravel(order="F")[positions - 1] = True
         mask = region & (composite | (volume == 1) | (NOTCH_CUTS_FIBRES & (volume == 2)))

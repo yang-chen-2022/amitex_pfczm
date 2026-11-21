@@ -87,10 +87,13 @@ module material_mod
                 deallocate_MatComposite,&
                 deallocate_Interphases,&
                 MIN_MPI_I8,MAX_MPI_I8,MAX_MPI_I,SUM_MPI_I8,SUM_MPI_I8_LARGE,&
-                umat_load, umat_call,initParam_umat, report_composite_nonconvergence
+                umat_load, umat_call,initParam_umat, report_composite_nonconvergence, &
+                composite_behavior_failed, composite_failure_mask
 
   integer(kind=INT64) :: composite_limit_count = 0, composite_accepted_count = 0
   real(mytype) :: composite_max_accepted_residual = 0._mytype
+  logical :: composite_behavior_failed = .false.
+  real(REAL32), allocatable :: composite_failure_mask(:)
 
 !!------------------------------------------------------------------------------
 !>                                                            TIMES MEASUREMENTS
@@ -1803,12 +1806,22 @@ subroutine behavior(SIG, SIG0, DEF, DEF0, TEMPRED,DTEMPRED, t_load, KSTEP0,&
   double precision                                 :: t1 !mesure de temps 
 
   integer(kind=INT64)                              :: Nsub_loc,Nincr_loc,Nit_loc ! compteurs pour suivi des performances de Pilotage/umatLaminate
+  logical :: local_composite_failure, skip_composite_work
 
 
   call MPI_BARRIER(amitex_mpi_comm,ierror)          
   t1 = MPI_WTIME()
 
   KINC=1
+  local_composite_failure = .false.
+  composite_behavior_failed = .false.
+  if (testComposite) then
+     if (allocated(composite_failure_mask)) then
+        if (size(composite_failure_mask) /= size(SIG,1)) deallocate(composite_failure_mask)
+     end if
+     if (.not. allocated(composite_failure_mask)) allocate(composite_failure_mask(size(SIG,1)))
+     composite_failure_mask = 0._REAL32
+  end if
 
   ! Chose stress used as input for umat 
   use_sig00 = .true.
@@ -1953,12 +1966,20 @@ subroutine behavior(SIG, SIG0, DEF, DEF0, TEMPRED,DTEMPRED, t_load, KSTEP0,&
         Coeff(1:nCoeff)=dble(MattotP(i)%Coeff(:,j))
         
 #ifdef OPENMP
-        !$OMP PARALLEL NUM_THREADS(nbthread) private(m,sig_tmp,ddef_tmp,def0_tmp,VarInt)
+        !$OMP PARALLEL NUM_THREADS(nbthread) private(m,sig_tmp,ddef_tmp,def0_tmp,VarInt,KINC, &
+        !$OMP& skip_composite_work,temp_int1,temp_int2)
         !$OMP DO
 #endif
         do k=l,MattotP(i)%zone(j,1)
 
            m=MattotP(i)%pos(k)
+           !$OMP ATOMIC READ
+           skip_composite_work = local_composite_failure
+           if (skip_composite_work) then
+              composite_failure_mask(m) = 2._REAL32
+              cycle
+           end if
+           KINC = 1
            sig_tmp=dble(sig(m,1:6))
            if(nVarInt>0) then
               if (use_varint00) then
@@ -2029,7 +2050,7 @@ subroutine behavior(SIG, SIG0, DEF, DEF0, TEMPRED,DTEMPRED, t_load, KSTEP0,&
                     call PilotageComposite(i,umatptr(1:mattotP(i)%NPhase),sig_tmp,VarInt(1:nVarInt),&
                                    def0_tmp,ddef_tmp,times,dt,&
                                    nVarInt,Coeff(1:nCoeff),nCoeff,DFGRD0,DFGRD1,KINC,temp_int1,temp_int2,m)
-                    if(KINC < 1) then
+                    if(KINC < 1 .and. KINC /= -10) then
                        write(err_msg,"(A,I0,A)") "Probleme lors de l execution de la loi UMATVOIGT &
                             & pour le matériau ",mattotP(i)%numM," (behavior)"
                        call amitex_abort(err_msg,1)
@@ -2059,7 +2080,7 @@ subroutine behavior(SIG, SIG0, DEF, DEF0, TEMPRED,DTEMPRED, t_load, KSTEP0,&
                                    def0_tmp,ddef_tmp,times,dt,&
                                    nVarInt,Coeff(1:nCoeff),nCoeff,DFGRD0,DFGRD1,KINC,temp_int1,temp_int2,m)
                     !TODO : gestion des erreurs
-                    if(KINC < 1) then
+                    if(KINC < 1 .and. KINC /= -10) then
                        write(err_msg,"(A,I0,A)") "Probleme lors de l execution de la loi UMATREUSS &
                             & pour le matériau ",mattotP(i)%numM," (behavior)"
                        call amitex_abort(err_msg,2)
@@ -2127,6 +2148,13 @@ subroutine behavior(SIG, SIG0, DEF, DEF0, TEMPRED,DTEMPRED, t_load, KSTEP0,&
               !TODO traitement erreur (KINC) cas homogene
            end if  ! FIN 
 
+           if (KINC == -10 .and. MattotP(i)%Nphase > 1 .and. .not. check_extension) then
+              composite_failure_mask(m) = 1._REAL32
+              !$OMP ATOMIC WRITE
+              local_composite_failure = .true.
+              cycle
+           end if
+
            ! AFFECTATION DES DE "CHAMPS" CONTRAINTE ET VARIABLE INTERNE 
            SIG(m,1:6)=real(sig_tmp,mytype)
            if(nVarint>0)then
@@ -2135,9 +2163,7 @@ subroutine behavior(SIG, SIG0, DEF, DEF0, TEMPRED,DTEMPRED, t_load, KSTEP0,&
 
            ! TRAITEMENT DES ERREURS
            if(KINC == -10) then
-              write(err_msg,"(A)") "Probleme lors de l'execution de la loi UMATLAMINATE,&
-                                   & plus de 200 itérations de l'algorithme, calcul arrêté  (behavior)"
-              call amitex_abort(err_msg,1)
+              call amitex_abort("Probleme lors de l'execution de la loi UMATLAMINATE (behavior)",1)
            end if
            if(KINC == -11) then
               write(err_msg,"(A)") "Probleme lors de l'execution de la loi UMATREUSS,&
@@ -2171,6 +2197,10 @@ subroutine behavior(SIG, SIG0, DEF, DEF0, TEMPRED,DTEMPRED, t_load, KSTEP0,&
      end do
 
   end do
+  if (testComposite) then
+     call MPI_Allreduce(local_composite_failure, composite_behavior_failed, 1, MPI_LOGICAL, MPI_LOR, &
+                        amitex_mpi_comm, ierror)
+  end if
   ! Incrémentation des compteurs sur tous les voxels composites de la cellule
   ! Nombre total de voxels composite sur la cellule
   call MPI_Allreduce(nVoxComp, nVoxComp_tot, 1, MPI_INTEGER8, MPI_SUM, amitex_mpi_comm, ierror)
@@ -5777,8 +5807,8 @@ subroutine  PilotageComposite(numM,umatptr,sig,varint,def0,ddef,times,dt,&
 
   if (KINC == -10) then
      write(err_msg,"(A,I4,A)") "Non convergence umatComposite pour une subdivison en ",Nincrements,& 
-       " sous pas de temps -> subdivision maximale autorisée : arrêt du calcul (Pilotage umatComposite)"
-     call amitex_abort(err_msg,2)
+       " sous pas de temps -> subdivision maximale autorisée (Pilotage umatComposite)"
+     call amitex_abort(err_msg,0)
   elseif (KINC == -20) then
      write(err_msg,"(A,I4,A)") "Non convergence umat locale pour une subdivision en ",Nincrements,&
        " sous pas de temps -> subdivision maximale autorisée :  arrêt du calcul (Pilotage umatComposite)"

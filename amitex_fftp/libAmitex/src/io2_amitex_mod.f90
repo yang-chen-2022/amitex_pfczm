@@ -41,7 +41,7 @@ module io2_amitex_mod
   public :: TIMES_IO2
   
   !> Fonctions publiques
-  public :: writeVTK, print_field_vtk, read_field_vtk, print_coeff_varint_vtk
+  public :: writeVTK, capture_previous_vtk, previous_vtk_step, print_field_vtk, read_field_vtk, print_coeff_varint_vtk
 
   interface read_field_vtk
     module procedure  read_field_vtk_real64
@@ -62,8 +62,51 @@ module io2_amitex_mod
   end type TIMES_IO2
 
   type(TIMES_IO2),pointer   :: times_io
+
+  type saved_vtk_variables
+     real(REAL32), allocatable :: values(:,:)
+  end type saved_vtk_variables
+  type(saved_vtk_variables), allocatable :: previous_varint(:)
+  real(mytype), allocatable :: previous_sig(:,:), previous_def(:,:), previous_pk1(:,:)
+  real(mytype), allocatable :: previous_gradqd(:,:,:), previous_fluxd(:,:,:)
+  integer :: previous_vtk_step = 0
   
 contains 
+
+  subroutine capture_previous_vtk(step)
+    implicit none
+    integer, intent(in) :: step
+    integer :: i, j, k, column, nselected
+    integer(kind=8) :: p
+
+    if (algo_param%Mechanics) then
+       if (extract%sigVTK) then
+          previous_sig = Sig
+          if (.not. algo_param%HPP) previous_pk1 = PK1
+       end if
+       if (extract%defVTK) previous_def = Def
+       if (allocated(previous_varint)) deallocate(previous_varint)
+       allocate(previous_varint(size(MattotP)))
+       do k = 1, size(MattotP)
+          i = MattotP(k)%numM
+          nselected = count(extract%VarVTK(i)%val)
+          allocate(previous_varint(k)%values(size(MattotP(k)%pos),nselected))
+          column = 0
+          do j = 1, size(extract%VarVTK(i)%val)
+             if (.not. extract%VarVTK(i)%val(j)) cycle
+             column = column + 1
+             do p = 1, size(MattotP(k)%pos,kind=8)
+                previous_varint(k)%values(p,column) = real(MattotP(k)%VarInt(j,p),REAL32)
+             end do
+          end do
+       end do
+    end if
+    if (algo_param%Diffusion) then
+       if (extract%gradDVTK) previous_gradqd = GradQD
+       if (extract%fluxDVTK) previous_fluxd = FluxD
+    end if
+    previous_vtk_step = step
+  end subroutine capture_previous_vtk
 
 !===================================================================================================
 !
@@ -80,16 +123,24 @@ contains
 !!
 !!
 !===================================================================================================
-  subroutine writeVTK(ind_tps)
+  subroutine writeVTK(ind_tps, tag, previous)
 
     implicit none
 
     integer, intent(in) :: ind_tps
-    integer             :: i,j,k
+    character(len=*), optional, intent(in) :: tag
+    logical, optional, intent(in) :: previous
+    logical :: use_previous
+    integer             :: i,j,k,column
     integer(kind=8)     :: p
     character(len=200)  :: numS, suffixe, nomVarInt, numVar
     character(len=1)    :: tmp_i,tmp_j
+    character(len=:), allocatable :: vtk_base
 
+    use_previous = .false.
+    if (present(previous)) use_previous = previous
+    vtk_base = trim(fic_vtk)
+    if (present(tag)) vtk_base = vtk_base//tag
     numS=""
     write(numS,"(I0)") ind_tps
 
@@ -102,7 +153,11 @@ contains
           do i=1,6
              write(tmp_i,"(I1)") i
              suffixe = "_sig"//trim(tmp_i)//"_"//trim(ADJUSTL(numS))//".vtk"
-             call print_field_vtk(Sig(:,i),trim(fic_vtk)//trim(suffixe),"Sig_"//tmp_i)
+             if (use_previous) then
+                call print_field_vtk(previous_sig(:,i),vtk_base//trim(suffixe),"Sig_"//tmp_i)
+             else
+                call print_field_vtk(Sig(:,i),vtk_base//trim(suffixe),"Sig_"//tmp_i)
+             end if
           end do
 
        ! contraintes de Piola-Kirchhoff
@@ -110,7 +165,11 @@ contains
             do i=1,9
                write(tmp_i,"(I1)") i
                suffixe = "_pi"//trim(tmp_i)//"_"//trim(ADJUSTL(numS))//".vtk"
-               call print_field_vtk(PK1(:,i),trim(fic_vtk)//trim(suffixe),"PK1_"//tmp_i)
+               if (use_previous) then
+                  call print_field_vtk(previous_pk1(:,i),vtk_base//trim(suffixe),"PK1_"//tmp_i)
+               else
+                  call print_field_vtk(PK1(:,i),vtk_base//trim(suffixe),"PK1_"//tmp_i)
+               end if
             end do
           end if
     end if
@@ -124,7 +183,11 @@ contains
           do i=1,algo_param%nTensDef
              write(tmp_i,"(I1)") i
              suffixe = "_def"//trim(tmp_i)//"_"//trim(ADJUSTL(numS))//".vtk"
-             call print_field_vtk(Def(:,i),trim(fic_vtk)//trim(suffixe),"Def_"//tmp_i)
+             if (use_previous) then
+                call print_field_vtk(previous_def(:,i),vtk_base//trim(suffixe),"Def_"//tmp_i)
+             else
+                call print_field_vtk(Def(:,i),vtk_base//trim(suffixe),"Def_"//tmp_i)
+             end if
           end do
     end if
 
@@ -133,9 +196,11 @@ contains
     suffixe = "_"//trim(ADJUSTL(numS))//".vtk"
     k=1
     do i=1,nmateriaux%n
+       column = 0
        do j=1,size(extract%VarVTK(i)%val)
           ! si on doit extraire la variable interne
           if(extract%varVTK(i)%val(j)) then
+             column = column + 1
              TEMPfield32=0.
 
              ! si le materiau 'i' se trouve dans le pinceau
@@ -143,7 +208,11 @@ contains
              if (k<=size(MattotP)) then
              if(mattotP(k)%numM == i) then
                 do p=1,size(MattotP(k)%pos,kind=8)
-                   TEMPfield32(MattotP(k)%pos(p))=real(MattotP(k)%VarInt(j,p),kind=REAL32)
+                   if (use_previous) then
+                      TEMPfield32(MattotP(k)%pos(p)) = previous_varint(k)%values(p,column)
+                   else
+                      TEMPfield32(MattotP(k)%pos(p))=real(MattotP(k)%VarInt(j,p),kind=REAL32)
+                   end if
                 end do
              end if
              end if
@@ -157,7 +226,7 @@ contains
              nomVarInt = "M"//trim(AdjustL(numVar))//trim(nomVarint)
 
              ! Ecriture u fichier vtk (fonction generique) 
-             call print_field_vtk(TEMPfield32,trim(fic_vtk)//"_"//trim(nomVarint)//trim(suffixe),trim(nomVarInt))
+             call print_field_vtk(TEMPfield32,vtk_base//"_"//trim(nomVarint)//trim(suffixe),trim(nomVarInt))
           end if
        end do
        if (k<=size(MattotP)) then
@@ -180,7 +249,11 @@ contains
             do i=1,3
                write(tmp_i,"(I1)") i
                suffixe = "_"//trim(ADJUSTL(numS))//"_gradQ"//trim(tmp_j)//"_"//trim(tmp_i)//".vtk"
-               call print_field_vtk(GradQD(:,i,j),trim(fic_vtk)//trim(suffixe),"gradQ"//trim(tmp_j)//"_"//trim(tmp_i))
+               if (use_previous) then
+                  call print_field_vtk(previous_gradqd(:,i,j),vtk_base//trim(suffixe),"gradQ"//trim(tmp_j)//"_"//trim(tmp_i))
+               else
+                  call print_field_vtk(GradQD(:,i,j),vtk_base//trim(suffixe),"gradQ"//trim(tmp_j)//"_"//trim(tmp_i))
+               end if
             end do
        end do
     end if
@@ -193,7 +266,11 @@ contains
             do i=1,3
                write(tmp_i,"(I1)") i
                suffixe = "_"//trim(ADJUSTL(numS))//"_Flux"//trim(tmp_j)//"_"//trim(tmp_i)//".vtk"
-               call print_field_vtk(FluxD(:,i,j),trim(fic_vtk)//trim(suffixe),"Flux"//trim(tmp_j)//"_"//trim(tmp_i))
+               if (use_previous) then
+                  call print_field_vtk(previous_fluxd(:,i,j),vtk_base//trim(suffixe),"Flux"//trim(tmp_j)//"_"//trim(tmp_i))
+               else
+                  call print_field_vtk(FluxD(:,i,j),vtk_base//trim(suffixe),"Flux"//trim(tmp_j)//"_"//trim(tmp_i))
+               end if
             end do
        end do
     end if
